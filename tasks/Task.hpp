@@ -38,7 +38,7 @@ namespace linux_gpios{
         /** TaskContext constructor for Task
          * \param name Name of the task. This name needs to be unique to make it identifiable for nameservices.
          * \param engine The RTT Execution engine to be used for this task, which serialises the execution of all commands, programs, state machines and incoming events for a task.
-         * 
+         *
          */
         Task(std::string const& name, RTT::ExecutionEngine* engine);
 
@@ -103,8 +103,19 @@ namespace linux_gpios{
          * before calling start() again.
          */
         void cleanupHook();
+
+    private:
+        std::vector<int> m_write_fds;
+        std::vector<int> m_read_fds;
+
+        GPIOState mState;
+        GPIOState mCommand;
+
+        static std::vector<int> openGPIOs(Configuration const& config, int mode);
+        bool readGPIO(int fd);
+        void writeGPIO(int fd, bool value);
+        void closeAll();
     };
 }
 
 #endif
-

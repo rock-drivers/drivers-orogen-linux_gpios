@@ -13,9 +13,8 @@ namespace linux_gpios {
     struct GPIOState
     {
         base::Time time;
-        std::vector<raw_io::Digital> state;
+        std::vector<raw_io::Digital> states;
     };
 }
 
 #endif
-

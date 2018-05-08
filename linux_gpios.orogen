@@ -15,12 +15,15 @@ task_context "Task" do
 
     # The port on which the 'output' GPIOs can be commanded, in the same order
     # than the 'inputs' property
-    output_port 'w_values', '/linux_gpios/GPIOState'
+    input_port 'w_commands', '/linux_gpios/GPIOState'
 
     # The set of GPIOs that should be read, as a list of GPIO IDs
     property "r_configuration", "/linux_gpios/Configuration"
 
     # The port on which the state of the GPIOs that are read is exported
-    output_port 'r_values', '/linux_gpios/GPIOState'
-end
+    output_port 'r_states', '/linux_gpios/GPIOState'
 
+    fd_driven
+
+    exception_states :IO_ERROR
+end

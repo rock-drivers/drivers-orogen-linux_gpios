@@ -4,7 +4,7 @@ include(linux_gpiosTaskLib)
 ADD_LIBRARY(${LINUX_GPIOS_TASKLIB_NAME} SHARED 
     ${LINUX_GPIOS_TASKLIB_SOURCES})
 add_dependencies(${LINUX_GPIOS_TASKLIB_NAME}
-    regen-typekit)
+    regen)
 
 
 
