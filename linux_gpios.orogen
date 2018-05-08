@@ -1,0 +1,26 @@
+name "linux_gpios"
+
+import_types_from "std"
+import_types_from "raw_io"
+import_types_from "linux_gpiosTypes.hpp"
+
+# Task that reads and/or writes GPIOs
+task_context "Task" do
+    # This is the default from now on, and should not be removed. Rock will
+    # transition to a setup where all components use a configuration step.
+    needs_configuration
+
+    # The set of GPIOs that should be written, as a list of GPIO IDs
+    property "w_configuration", "/linux_gpios/Configuration"
+
+    # The port on which the 'output' GPIOs can be commanded, in the same order
+    # than the 'inputs' property
+    output_port 'w_values', '/linux_gpios/GPIOState'
+
+    # The set of GPIOs that should be read, as a list of GPIO IDs
+    property "r_configuration", "/linux_gpios/Configuration"
+
+    # The port on which the state of the GPIOs that are read is exported
+    output_port 'r_values', '/linux_gpios/GPIOState'
+end
+
