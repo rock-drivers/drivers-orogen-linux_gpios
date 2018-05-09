@@ -1,7 +1,6 @@
 /* Generated from orogen/lib/orogen/templates/tasks/Task.cpp */
 
 #include "Task.hpp"
-#include <rtt/extras/FileDescriptorActivity.hpp>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -38,14 +37,6 @@ bool Task::configureHook()
     mCommand.states.resize(m_write_fds.size());
     m_read_fds = openGPIOs(_r_configuration.get(), O_RDONLY);
     mState.states.resize(m_read_fds.size());
-
-    RTT::extras::FileDescriptorActivity* fd_activity =
-        getActivity<RTT::extras::FileDescriptorActivity>();
-    if (fd_activity)
-    {
-        for (int fd : m_read_fds)
-            fd_activity->watch(fd);
-    }
     return true;
 }
 bool Task::startHook()
@@ -64,9 +55,6 @@ bool Task::startHook()
 }
 void Task::updateHook()
 {
-    RTT::extras::FileDescriptorActivity* fd_activity =
-        getActivity<RTT::extras::FileDescriptorActivity>();
-
     while (_w_commands.read(mCommand, false) == RTT::NewData)
     {
         for (size_t i = 0; i < m_write_fds.size(); ++i)
@@ -78,10 +66,10 @@ void Task::updateHook()
     for (size_t i = 0; i < m_read_fds.size(); ++i)
     {
         int fd = m_read_fds[i];
-        if (!fd_activity || fd_activity->isUpdated(fd))
-        {
+        hasUpdate = true;
+        bool value = readGPIO(fd);
+        if (mState.states[i].data != value) {
             hasUpdate = true;
-            bool value = readGPIO(fd);
             mState.states[i].time = now;
             mState.states[i].data = value;
         }
@@ -155,12 +143,8 @@ void Task::closeAll()
     }
     m_write_fds.clear();
 
-    RTT::extras::FileDescriptorActivity* fd_activity =
-        getActivity<RTT::extras::FileDescriptorActivity>();
     for (int fd : m_read_fds)
     {
-        if (fd_activity)
-            fd_activity->unwatch(fd);
         close(fd);
     }
     m_read_fds.clear();

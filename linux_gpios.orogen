@@ -23,7 +23,7 @@ task_context "Task" do
     # The port on which the state of the GPIOs that are read is exported
     output_port 'r_states', '/linux_gpios/GPIOState'
 
-    fd_driven
+    periodic 0.01
 
     exception_states :IO_ERROR
 end
