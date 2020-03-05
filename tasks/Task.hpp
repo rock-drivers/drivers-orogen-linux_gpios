@@ -105,13 +105,36 @@ namespace linux_gpios{
         void cleanupHook();
 
     private:
-        std::vector<int> m_write_fds;
-        std::vector<int> m_read_fds;
+        struct ConfiguredOutput : public OutputConfiguration {
+            int fd;
+
+            explicit ConfiguredOutput(int fd, OutputConfiguration const& other)
+                : OutputConfiguration(other)
+                , fd(fd) {
+            }
+        };
+
+        struct ConfiguredInput : public InputConfiguration {
+            int fd;
+
+            explicit ConfiguredInput(int fd, InputConfiguration const& other)
+                : InputConfiguration(other)
+                , fd(fd) {
+            }
+        };
+
+        std::vector<ConfiguredOutput> mOutput;
+        std::vector<ConfiguredInput> mInput;
 
         GPIOState mState;
         GPIOState mCommand;
 
-        static std::vector<int> openGPIOs(Configuration const& config, int mode);
+        template<typename T, typename C>
+        static std::vector<T> openGPIOs(std::vector<C> const& config, int mode);
+        void handleOnNoData(bool throw_on_error = true);
+
+        void writeOutputs();
+        void readInputs();
         bool readGPIO(int fd);
         void writeGPIO(int fd, bool value);
         void closeAll();

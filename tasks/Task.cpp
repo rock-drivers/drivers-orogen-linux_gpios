@@ -30,44 +30,46 @@ Task::~Task()
 
 bool Task::configureHook()
 {
-    if (! TaskBase::configureHook())
+    if (! TaskBase::configureHook()) {
         return false;
+    }
 
-    m_write_fds = openGPIOs(_w_configuration.get(), O_WRONLY);
-    mCommand.states.resize(m_write_fds.size());
-    m_read_fds = openGPIOs(_r_configuration.get(), O_RDONLY);
-    mState.states.resize(m_read_fds.size());
+    mOutput = openGPIOs<ConfiguredOutput>(_output_configuration.get(), O_WRONLY);
+    mCommand.states.resize(mOutput.size());
+    mInput = openGPIOs<ConfiguredInput>(_input_configuration.get(), O_RDONLY);
+    mState.states.resize(mInput.size());
     return true;
 }
 bool Task::startHook()
 {
-    if (! TaskBase::startHook())
+    if (! TaskBase::startHook()) {
         return false;
+    }
 
     auto now = base::Time::now();
-    for (size_t i = 0; i < m_read_fds.size(); ++i) {
-        bool value = readGPIO(m_read_fds[i]);
+    for (size_t i = 0; i < mInput.size(); ++i) {
+        bool value = readGPIO(mInput[i].fd);
         mState.states[i].time = now;
         mState.states[i].data = value;
     }
-    _r_states.write(mState);
+    _input_pins.write(mState);
     return true;
 }
 void Task::updateHook()
 {
-    while (_w_commands.read(mCommand, false) == RTT::NewData)
-    {
-        for (size_t i = 0; i < m_write_fds.size(); ++i)
-            writeGPIO(m_write_fds[i], mCommand.states[i].data);
-    }
+    writeOutputs();
+    readInputs();
+    TaskBase::updateHook();
+}
 
+void Task::readInputs() {
     auto now = base::Time::now();
     bool hasUpdate = false;
-    for (size_t i = 0; i < m_read_fds.size(); ++i)
+    for (size_t i = 0; i < mInput.size(); ++i)
     {
-        int fd = m_read_fds[i];
+        auto gpio = mInput[i];
         hasUpdate = true;
-        bool value = readGPIO(fd);
+        bool value = readGPIO(gpio.fd);
         if (mState.states[i].data != value) {
             hasUpdate = true;
             mState.states[i].time = now;
@@ -77,20 +79,53 @@ void Task::updateHook()
     if (hasUpdate)
     {
         mState.time = now;
-        _r_states.write(mState);
+        _input_pins.write(mState);
     }
-    TaskBase::updateHook();
 }
+void Task::writeOutputs() {
+    auto flowState = _output_pins.read(mCommand, false);
+
+    if (flowState == RTT::NoData) {
+        handleOnNoData();
+        return;
+    }
+
+    while (flowState == RTT::NewData)
+    {
+        for (size_t i = 0; i < mOutput.size(); ++i) {
+            writeGPIO(mOutput[i].fd, mCommand.states[i].data);
+        }
+        flowState = _output_pins.read(mCommand, false);
+    }
+}
+
+void Task::handleOnNoData(bool throw_on_error) {
+    for (size_t i = 0; i < mOutput.size(); ++i) {
+        if (mOutput[i].on_no_data == OutputConfiguration::USE_DEFAULT) {
+            try {
+                writeGPIO(mOutput[i].fd, mOutput[i].default_state);
+            }
+            catch (...) {
+                if (throw_on_error) {
+                    throw;
+                }
+            }
+        }
+    }
+}
+
 void Task::errorHook()
 {
     TaskBase::errorHook();
 }
 void Task::stopHook()
 {
+    handleOnNoData();
     TaskBase::stopHook();
 }
 void Task::cleanupHook()
 {
+    handleOnNoData(false);
     closeAll();
     TaskBase::cleanupHook();
 }
@@ -100,11 +135,15 @@ namespace
     struct CloseGuard
     {
         vector<int> fds;
-        CloseGuard() {}
+
+        CloseGuard() {
+        }
+
         ~CloseGuard()
         {
-            for (int fd : fds)
+            for (int fd : fds) {
                 close(fd);
+            }
         }
         void push_back(int fd)
         {
@@ -119,10 +158,14 @@ namespace
     };
 }
 
-std::vector<int> Task::openGPIOs(Configuration const& config, int mode)
+template<typename T, typename C>
+vector<T> Task::openGPIOs(vector<C> const& config, int mode)
 {
+    vector<T> result;
+
     CloseGuard guard;
-    for (int id : config.ids) {
+    for (auto const& gpio : config) {
+        int id = gpio.id;
         string sysfs_path = "/sys/class/gpio/gpio" + to_string(id) + "/value";
         int fd = open(sysfs_path.c_str(), mode);
         if (fd == -1)
@@ -131,23 +174,24 @@ std::vector<int> Task::openGPIOs(Configuration const& config, int mode)
                 + strerror(errno));
         }
         guard.push_back(fd);
+
+        result.push_back(T(fd, gpio));
     }
-    return guard.release();
+    guard.release();
+    return result;
 }
 
 void Task::closeAll()
 {
-    for (int fd : m_write_fds)
-    {
-        close(fd);
+    for (auto gpio : mOutput) {
+        close(gpio.fd);
     }
-    m_write_fds.clear();
+    mOutput.clear();
 
-    for (int fd : m_read_fds)
-    {
-        close(fd);
+    for (auto gpio : mInput) {
+        close(gpio.fd);
     }
-    m_read_fds.clear();
+    mInput.clear();
 }
 
 void Task::writeGPIO(int fd, bool value)
@@ -167,11 +211,11 @@ bool Task::readGPIO(int fd)
     lseek(fd, 0, SEEK_SET);
     char buf;
     int ret = read(fd, &buf, 1);
-    if (ret != 1)
-    {
+    if (ret != 1) {
         exception(IO_ERROR);
         throw std::runtime_error("failed to read GPIO status");
     }
-    else
+    else {
         return buf == '1';
+    }
 }
