@@ -1,12 +1,9 @@
 <package>
   <description brief="Interface to the Linux GPIOs">
-  
   </description>
   <author>Sylvain Joyeux/sylvain.joyeux@13robotics.com</author>
   <license></license>
-  <url>http://</url>
-  <logo>http://</logo>
-  <depend package="base/cmake" />
+  <depend package="base/logging" />
   <depend package="base/orogen/types" />
   <depend package="drivers/orogen/raw_io" />
 </package>

@@ -25,8 +25,9 @@ namespace linux_gpios{
     {
 	friend class TaskBase;
     protected:
-
-
+        void handleWrites();
+        void outputDefaults();
+        std::vector<uint8_t> mDefaultStates;
 
     public:
         /** TaskContext constructor for Task

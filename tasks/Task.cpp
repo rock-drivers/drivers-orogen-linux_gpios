@@ -2,6 +2,8 @@
 
 #include "Task.hpp"
 
+#include <base-logging/Logging.hpp>
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -35,6 +37,16 @@ bool Task::configureHook()
 
     m_write_fds = openGPIOs(_w_configuration.get(), O_WRONLY);
     mCommand.states.resize(m_write_fds.size());
+    auto def = _w_default_states.get().states;
+    if (!def.empty() && def.size() != m_write_fds.size()) {
+        LOG_ERROR_S
+            << def.size() << " default states given, but there are "
+            << m_write_fds.size() << " configured GPIOs for write"
+            << std::endl;
+        closeAll();
+        return false;
+    }
+    mDefaultStates = def;
     m_read_fds = openGPIOs(_r_configuration.get(), O_RDONLY);
     mState.states.resize(m_read_fds.size());
     return true;
@@ -55,11 +67,7 @@ bool Task::startHook()
 }
 void Task::updateHook()
 {
-    while (_w_commands.read(mCommand, false) == RTT::NewData)
-    {
-        for (size_t i = 0; i < m_write_fds.size(); ++i)
-            writeGPIO(m_write_fds[i], mCommand.states[i].data);
-    }
+    handleWrites();
 
     auto now = base::Time::now();
     bool hasUpdate = false;
@@ -81,6 +89,30 @@ void Task::updateHook()
     }
     TaskBase::updateHook();
 }
+void Task::handleWrites() {
+    RTT::FlowStatus writeState = _w_commands.read(mCommand, false);
+    if (writeState == RTT::NoData) {
+        return outputDefaults();
+    }
+
+    while (writeState == RTT::NewData)
+    {
+        for (size_t i = 0; i < m_write_fds.size(); ++i)
+            writeGPIO(m_write_fds[i], mCommand.states[i].data);
+
+        writeState = _w_commands.read(mCommand, false);
+    }
+}
+
+void Task::outputDefaults() {
+    if (mDefaultStates.empty()) {
+        return;
+    }
+
+    for (size_t i = 0; i < m_write_fds.size(); ++i)
+        writeGPIO(m_write_fds[i], mDefaultStates[i]);
+}
+
 void Task::errorHook()
 {
     TaskBase::errorHook();

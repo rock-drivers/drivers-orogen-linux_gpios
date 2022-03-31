@@ -13,6 +13,11 @@ task_context "Task" do
     # The set of GPIOs that should be written, as a list of GPIO IDs
     property "w_configuration", "/linux_gpios/Configuration"
 
+    # Default states for each of the written GPIOs
+    #
+    # Leave empty to do nothing if the input port is disconnected
+    property "w_default_states", "/linux_gpios/DefaultStates"
+
     # The port on which the 'output' GPIOs can be commanded, in the same order
     # than the 'inputs' property
     input_port 'w_commands', '/linux_gpios/GPIOState'

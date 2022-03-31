@@ -6,10 +6,16 @@
 #include <raw_io/Digital.hpp>
 
 namespace linux_gpios {
+    struct DefaultStates
+    {
+        std::vector<uint8_t> states;
+    };
+
     struct Configuration
     {
         std::vector<int32_t> ids;
     };
+
     struct GPIOState
     {
         base::Time time;
