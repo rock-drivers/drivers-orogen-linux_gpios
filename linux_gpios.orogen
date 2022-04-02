@@ -15,13 +15,22 @@ task_context "Task" do
 
     # The port on which the 'output' GPIOs can be commanded, in the same order
     # than the 'inputs' property
-    input_port 'w_commands', '/linux_gpios/GPIOState'
+    input_port "w_digital_io", "/std/vector</raw_io/Digital>"
+
+    # The port on which the state of the GPIOs that are read is exported
+    output_port "r_digital_io", "/std/vector</raw_io/Digital>"
+
+    # The port on which the 'output' GPIOs can be commanded, in the same order
+    # than the 'inputs' property
+    #
+    # This port is deprecated. You should use w_digital_io and r_digital_io instead
+    input_port "w_commands", "/linux_gpios/GPIOState"
 
     # The set of GPIOs that should be read, as a list of GPIO IDs
     property "r_configuration", "/linux_gpios/Configuration"
 
     # The port on which the state of the GPIOs that are read is exported
-    output_port 'r_states', '/linux_gpios/GPIOState'
+    output_port "r_states", "/linux_gpios/GPIOState"
 
     periodic 0.01
 

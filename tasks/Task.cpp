@@ -34,8 +34,11 @@ bool Task::configureHook()
         return false;
 
     m_write_fds = openGPIOs(_w_configuration.get(), O_WRONLY);
+    mIn.resize(m_write_fds.size());
     mCommand.states.resize(m_write_fds.size());
+
     m_read_fds = openGPIOs(_r_configuration.get(), O_RDONLY);
+    mOut.resize(m_read_fds.size());
     mState.states.resize(m_read_fds.size());
     return true;
 }
@@ -55,6 +58,12 @@ bool Task::startHook()
 }
 void Task::updateHook()
 {
+    while (_w_digital_io.read(mIn, false) == RTT::NewData)
+    {
+        for (size_t i = 0; i < m_write_fds.size(); ++i)
+            writeGPIO(m_write_fds[i], mIn[i].data);
+    }
+
     while (_w_commands.read(mCommand, false) == RTT::NewData)
     {
         for (size_t i = 0; i < m_write_fds.size(); ++i)
@@ -68,14 +77,17 @@ void Task::updateHook()
         int fd = m_read_fds[i];
         hasUpdate = true;
         bool value = readGPIO(fd);
-        if (mState.states[i].data != value) {
+        if (mOut[i].data != value) {
             hasUpdate = true;
+            mOut[i].time = now;
+            mOut[i].data = value;
             mState.states[i].time = now;
             mState.states[i].data = value;
         }
     }
     if (hasUpdate)
     {
+        _r_digital_io.write(mOut);
         mState.time = now;
         _r_states.write(mState);
     }

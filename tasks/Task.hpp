@@ -108,7 +108,9 @@ namespace linux_gpios{
         std::vector<int> m_write_fds;
         std::vector<int> m_read_fds;
 
+        std::vector<raw_io::Digital> mOut;
         GPIOState mState;
+        std::vector<raw_io::Digital> mIn;
         GPIOState mCommand;
 
         static std::vector<int> openGPIOs(Configuration const& config, int mode);
