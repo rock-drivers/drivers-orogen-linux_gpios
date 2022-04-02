@@ -47,17 +47,16 @@ bool Task::startHook()
     if (! TaskBase::startHook())
         return false;
 
-    auto now = base::Time::now();
-    for (size_t i = 0; i < m_read_fds.size(); ++i) {
-        bool value = readGPIO(m_read_fds[i]);
-        mState.states[i].time = now;
-        mState.states[i].data = value;
-    }
-    _r_states.write(mState);
+    handleOutput(true);
     return true;
 }
 void Task::updateHook()
 {
+    handleInput();
+    handleOutput(false);
+    TaskBase::updateHook();
+}
+void Task::handleInput() {
     while (_w_digital_io.read(mIn, false) == RTT::NewData)
     {
         for (size_t i = 0; i < m_write_fds.size(); ++i)
@@ -69,29 +68,31 @@ void Task::updateHook()
         for (size_t i = 0; i < m_write_fds.size(); ++i)
             writeGPIO(m_write_fds[i], mCommand.states[i].data);
     }
-
+}
+void Task::handleOutput(bool force) {
     auto now = base::Time::now();
-    bool hasUpdate = false;
+
+    bool doOutput = false;
     for (size_t i = 0; i < m_read_fds.size(); ++i)
     {
         int fd = m_read_fds[i];
-        hasUpdate = true;
         bool value = readGPIO(fd);
-        if (mOut[i].data != value) {
-            hasUpdate = true;
+
+        if (force || mOut[i].data != value) {
+            doOutput = true;
             mOut[i].time = now;
             mOut[i].data = value;
             mState.states[i].time = now;
             mState.states[i].data = value;
         }
     }
-    if (hasUpdate)
+
+    if (doOutput || !_output_on_change.get())
     {
         _r_digital_io.write(mOut);
         mState.time = now;
         _r_states.write(mState);
     }
-    TaskBase::updateHook();
 }
 void Task::errorHook()
 {

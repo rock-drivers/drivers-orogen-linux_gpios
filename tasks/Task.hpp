@@ -113,6 +113,9 @@ namespace linux_gpios{
         std::vector<raw_io::Digital> mIn;
         GPIOState mCommand;
 
+        void handleInput();
+        void handleOutput(bool force);
+
         static std::vector<int> openGPIOs(Configuration const& config, int mode);
         bool readGPIO(int fd);
         void writeGPIO(int fd, bool value);

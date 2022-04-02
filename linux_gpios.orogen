@@ -10,6 +10,12 @@ task_context "Task" do
     # transition to a setup where all components use a configuration step.
     needs_configuration
 
+    # Control whether the GPIOs are output at each cycle, or only when their state
+    # changed
+    #
+    # It is false for backward compatibility
+    property "output_on_change", "bool", false
+
     # The set of GPIOs that should be written, as a list of GPIO IDs
     property "w_configuration", "/linux_gpios/Configuration"
 
