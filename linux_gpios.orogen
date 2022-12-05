@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 name "linux_gpios"
 
 import_types_from "std"
@@ -15,13 +17,13 @@ task_context "Task" do
 
     # The port on which the 'output' GPIOs can be commanded, in the same order
     # than the 'inputs' property
-    input_port 'w_commands', '/linux_gpios/GPIOState'
+    input_port "w_commands", "/linux_gpios/GPIOState"
 
     # The set of GPIOs that should be read, as a list of GPIO IDs
     property "r_configuration", "/linux_gpios/Configuration"
 
     # The port on which the state of the GPIOs that are read is exported
-    output_port 'r_states', '/linux_gpios/GPIOState'
+    output_port "r_states", "/linux_gpios/GPIOState"
 
     periodic 0.01
 
