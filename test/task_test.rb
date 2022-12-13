@@ -69,9 +69,7 @@ describe OroGen.linux_gpios.Task do
         task.properties.r_configuration = { ids: [124] }
         syskit_configure_and_start(task)
 
-        10.times do
-            expect_execution.to { have_one_new_sample(task.r_states_port) }
-        end
+        expect_execution.to { have_new_samples(task.r_states_port, 10) }
     end
 
     it "writes only on state change if edge_triggered_output is set" do
@@ -105,6 +103,63 @@ describe OroGen.linux_gpios.Task do
         expect_execution { syskit_write(task.w_commands_port, command) }.to do
             emit task.unexpected_command_size_event
         end
+    end
+
+    it "writes the default value on start and reports the initial value if it changed" do
+        make_fake_gpio(124, false)
+        task.properties.w_configuration = {
+            ids: [124], defaults: [1], timeout: Time.at(20)
+        }
+        task.properties.r_configuration = { ids: [124] }
+        task.properties.edge_triggered_output = true
+        syskit_configure(task)
+
+        samples = expect_execution { task.start! }.to do
+            have_new_samples(task.r_states_port, 2)
+        end
+
+        assert read_fake_gpio(124)
+        assert_equal 0, samples[0].states[0].data
+        assert_equal 1, samples[1].states[0].data
+    end
+
+    it "writes the default value if the port is disconnected" do
+        make_fake_gpio(124, false)
+        task.properties.w_configuration = {
+            ids: [124], defaults: [0], timeout: Time.at(600)
+        }
+        syskit_configure_and_start(task)
+
+        w = syskit_create_writer(task.w_commands_port)
+
+        command = { states: [{ data: 1 }] }
+        expect_execution { syskit_write(w, command) }.to do
+            achieve { read_fake_gpio(124) }
+        end
+        w.disconnect
+
+        expect_execution.to do
+            achieve { !read_fake_gpio(124) }
+        end
+    end
+
+    it "writes the default value if no new samples "\
+       "are received within the configured timeout" do
+        make_fake_gpio(124, false)
+        task.properties.w_configuration = {
+            ids: [124], defaults: [0], timeout: Time.at(0.5)
+        }
+        syskit_configure_and_start(task)
+
+        w = syskit_create_writer(task.w_commands_port)
+
+        command = { states: [{ data: 1 }] }
+        expect_execution { syskit_write(w, command) }.to do
+            achieve { read_fake_gpio(124) }
+        end
+
+        sleep(0.8)
+        refute read_fake_gpio(124)
     end
 
     def make_fake_gpio(id, value)

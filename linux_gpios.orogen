@@ -2,6 +2,8 @@
 
 name "linux_gpios"
 
+using_library "base-logging", typekit: false
+
 import_types_from "std"
 import_types_from "raw_io"
 import_types_from "linux_gpiosTypes.hpp"
@@ -21,14 +23,14 @@ task_context "Task" do
     property "edge_triggered_output", "/bool", false
 
     # The set of GPIOs that should be written, as a list of GPIO IDs
-    property "w_configuration", "/linux_gpios/Configuration"
+    property "w_configuration", "/linux_gpios/WriteConfiguration"
 
     # The port on which the 'output' GPIOs can be commanded, in the same order
     # than the 'inputs' property
     input_port "w_commands", "/linux_gpios/GPIOState"
 
     # The set of GPIOs that should be read, as a list of GPIO IDs
-    property "r_configuration", "/linux_gpios/Configuration"
+    property "r_configuration", "/linux_gpios/ReadConfiguration"
 
     # The port on which the state of the GPIOs that are read is exported
     output_port "r_states", "/linux_gpios/GPIOState"

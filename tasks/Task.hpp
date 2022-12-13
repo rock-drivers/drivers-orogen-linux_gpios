@@ -109,17 +109,19 @@ namespace linux_gpios {
         void cleanupHook();
 
     private:
+        WriteConfiguration m_write_configuration;
         std::vector<int> m_write_fds;
         std::vector<int> m_read_fds;
 
         GPIOState m_state;
         GPIOState m_command;
 
-        static std::vector<int> openGPIOs(Configuration const& config,
+        static std::vector<int> openGPIOs(std::vector<int32_t> const& ids,
             int mode,
             std::string const& sysfs_root_path);
         bool readGPIO(int fd);
         void writeGPIO(int fd, bool value);
+        void writeDefaults();
         void handleWriteSide();
         void closeAll();
     };

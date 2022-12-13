@@ -1,6 +1,7 @@
 /* Generated from orogen/lib/orogen/templates/tasks/Task.cpp */
 
 #include "Task.hpp"
+#include <base-logging/Logging.hpp>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -33,12 +34,22 @@ bool Task::configureHook()
     if (!TaskBase::configureHook())
         return false;
 
-    m_write_fds = openGPIOs(_w_configuration.get(), O_WRONLY, _sysfs_gpio_path.get());
-    m_read_fds = openGPIOs(_r_configuration.get(), O_RDONLY, _sysfs_gpio_path.get());
+    m_write_configuration = _w_configuration.get();
+    if (!m_write_configuration.defaults.empty()) {
+        if (m_write_configuration.defaults.size() != m_write_configuration.ids.size()) {
+            LOG_ERROR_S << "defaults array and ids array have different sizes in write "
+                           "configuration"
+                        << std::endl;
+            return false;
+        }
+    }
+    m_write_fds = openGPIOs(m_write_configuration.ids, O_WRONLY, _sysfs_gpio_path.get());
     m_command.states.resize(m_write_fds.size());
+    m_read_fds = openGPIOs(_r_configuration.get().ids, O_RDONLY, _sysfs_gpio_path.get());
     m_state.states.resize(m_read_fds.size());
     return true;
 }
+
 bool Task::startHook()
 {
     if (!TaskBase::startHook())
@@ -51,8 +62,11 @@ bool Task::startHook()
         m_state.states[i].data = value;
     }
     _r_states.write(m_state);
+
+    writeDefaults();
     return true;
 }
+
 void Task::updateHook()
 {
     handleWriteSide();
@@ -74,17 +88,45 @@ void Task::updateHook()
     }
     TaskBase::updateHook();
 }
+
 void Task::handleWriteSide()
 {
-    while (_w_commands.read(m_command, false) == RTT::NewData) {
+    auto now = base::Time::now();
+    auto flow = _w_commands.read(m_command, false);
+    if (flow == RTT::NoData) {
+        writeDefaults();
+        return;
+    }
+    else if (flow == RTT::OldData) {
+        if (m_command.time + m_write_configuration.timeout < now) {
+            writeDefaults();
+        }
+        return;
+    }
+
+    while (flow == RTT::NewData) {
         if (m_command.states.size() != m_write_fds.size()) {
             exception(UNEXPECTED_COMMAND_SIZE);
             return;
         }
 
+        // Update the time for timeout/defaults handling
+        m_command.time = now;
         for (size_t i = 0; i < m_write_fds.size(); ++i) {
             writeGPIO(m_write_fds[i], m_command.states[i].data);
         }
+        flow = _w_commands.read(m_command, false);
+    }
+}
+
+void Task::writeDefaults()
+{
+    if (m_write_configuration.defaults.empty()) {
+        return;
+    }
+
+    for (size_t i = 0; i < m_write_fds.size(); ++i) {
+        writeGPIO(m_write_fds[i], m_write_configuration.defaults[i]);
     }
 }
 
@@ -126,12 +168,12 @@ namespace {
     };
 }
 
-std::vector<int> Task::openGPIOs(Configuration const& config,
+std::vector<int> Task::openGPIOs(std::vector<int32_t> const& ids,
     int mode,
     string const& sysfs_root_path)
 {
     CloseGuard guard;
-    for (int id : config.ids) {
+    for (int id : ids) {
         string sysfs_path = sysfs_root_path + "/gpio" + to_string(id) + "/value";
         int fd = open(sysfs_path.c_str(), mode);
         if (fd == -1) {
