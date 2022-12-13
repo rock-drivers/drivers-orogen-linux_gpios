@@ -15,6 +15,11 @@ task_context "Task" do
     # Root of GPIOs in sysfs. Exclusively for testing
     property "sysfs_gpio_path", "/std/string", "/sys/class/gpio/gpio"
 
+    # Whether the output should be written only when change
+    #
+    # It is false to keep backward compatibility. We recommend setting to true
+    property "edge_triggered_output", "/bool", false
+
     # The set of GPIOs that should be written, as a list of GPIO IDs
     property "w_configuration", "/linux_gpios/Configuration"
 

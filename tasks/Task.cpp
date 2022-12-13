@@ -58,10 +58,9 @@ void Task::updateHook()
     handleWriteSide();
 
     auto now = base::Time::now();
-    bool hasUpdate = false;
+    bool hasUpdate = !_edge_triggered_output.get();
     for (size_t i = 0; i < m_read_fds.size(); ++i) {
         int fd = m_read_fds[i];
-        hasUpdate = true;
         bool value = readGPIO(fd);
         if (m_state.states[i].data != value) {
             hasUpdate = true;
