@@ -115,7 +115,9 @@ namespace linux_gpios {
         GPIOState mState;
         GPIOState mCommand;
 
-        static std::vector<int> openGPIOs(Configuration const& config, int mode);
+        static std::vector<int> openGPIOs(Configuration const& config,
+            int mode,
+            std::string const& sysfs_root_path);
         bool readGPIO(int fd);
         void writeGPIO(int fd, bool value);
         void closeAll();

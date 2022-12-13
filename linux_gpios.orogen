@@ -12,6 +12,9 @@ task_context "Task" do
     # transition to a setup where all components use a configuration step.
     needs_configuration
 
+    # Root of GPIOs in sysfs. Exclusively for testing
+    property "sysfs_gpio_path", "/std/string", "/sys/class/gpio/gpio"
+
     # The set of GPIOs that should be written, as a list of GPIO IDs
     property "w_configuration", "/linux_gpios/Configuration"
 

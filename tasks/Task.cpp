@@ -33,9 +33,9 @@ bool Task::configureHook()
     if (!TaskBase::configureHook())
         return false;
 
-    m_write_fds = openGPIOs(_w_configuration.get(), O_WRONLY);
+    m_write_fds = openGPIOs(_w_configuration.get(), O_WRONLY, _sysfs_gpio_path.get());
     mCommand.states.resize(m_write_fds.size());
-    m_read_fds = openGPIOs(_r_configuration.get(), O_RDONLY);
+    m_read_fds = openGPIOs(_r_configuration.get(), O_RDONLY, _sysfs_gpio_path.get());
     mState.states.resize(m_read_fds.size());
     return true;
 }
@@ -116,11 +116,13 @@ namespace {
     };
 }
 
-std::vector<int> Task::openGPIOs(Configuration const& config, int mode)
+std::vector<int> Task::openGPIOs(Configuration const& config,
+    int mode,
+    string const& sysfs_root_path)
 {
     CloseGuard guard;
     for (int id : config.ids) {
-        string sysfs_path = "/sys/class/gpio/gpio" + to_string(id) + "/value";
+        string sysfs_path = sysfs_root_path + "/gpio" + to_string(id) + "/value";
         int fd = open(sysfs_path.c_str(), mode);
         if (fd == -1) {
             throw runtime_error("Failed to open " + sysfs_path + ": " + strerror(errno));
