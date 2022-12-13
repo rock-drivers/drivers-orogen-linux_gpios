@@ -34,9 +34,9 @@ bool Task::configureHook()
         return false;
 
     m_write_fds = openGPIOs(_w_configuration.get(), O_WRONLY, _sysfs_gpio_path.get());
-    mCommand.states.resize(m_write_fds.size());
     m_read_fds = openGPIOs(_r_configuration.get(), O_RDONLY, _sysfs_gpio_path.get());
-    mState.states.resize(m_read_fds.size());
+    m_command.states.resize(m_write_fds.size());
+    m_state.states.resize(m_read_fds.size());
     return true;
 }
 bool Task::startHook()
@@ -47,18 +47,15 @@ bool Task::startHook()
     auto now = base::Time::now();
     for (size_t i = 0; i < m_read_fds.size(); ++i) {
         bool value = readGPIO(m_read_fds[i]);
-        mState.states[i].time = now;
-        mState.states[i].data = value;
+        m_state.states[i].time = now;
+        m_state.states[i].data = value;
     }
-    _r_states.write(mState);
+    _r_states.write(m_state);
     return true;
 }
 void Task::updateHook()
 {
-    while (_w_commands.read(mCommand, false) == RTT::NewData) {
-        for (size_t i = 0; i < m_write_fds.size(); ++i)
-            writeGPIO(m_write_fds[i], mCommand.states[i].data);
-    }
+    handleWriteSide();
 
     auto now = base::Time::now();
     bool hasUpdate = false;
@@ -66,18 +63,27 @@ void Task::updateHook()
         int fd = m_read_fds[i];
         hasUpdate = true;
         bool value = readGPIO(fd);
-        if (mState.states[i].data != value) {
+        if (m_state.states[i].data != value) {
             hasUpdate = true;
-            mState.states[i].time = now;
-            mState.states[i].data = value;
+            m_state.states[i].time = now;
+            m_state.states[i].data = value;
         }
     }
     if (hasUpdate) {
-        mState.time = now;
-        _r_states.write(mState);
+        m_state.time = now;
+        _r_states.write(m_state);
     }
     TaskBase::updateHook();
 }
+void Task::handleWriteSide()
+{
+    while (_w_commands.read(m_command, false) == RTT::NewData) {
+        for (size_t i = 0; i < m_write_fds.size(); ++i) {
+            writeGPIO(m_write_fds[i], m_command.states[i].data);
+        }
+    }
+}
+
 void Task::errorHook()
 {
     TaskBase::errorHook();
