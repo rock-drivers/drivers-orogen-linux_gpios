@@ -64,6 +64,28 @@ describe OroGen.linux_gpios.Task do
         assert_equal "1", read_fake_gpio(124)
     end
 
+    it "rejects a command input whose size is lower than the expected" do
+        make_fake_gpio(124, "0")
+        task.properties.w_configuration = { ids: [124] }
+        syskit_configure_and_start(task)
+
+        command = { states: [] }
+        expect_execution { syskit_write(task.w_commands_port, command) }.to do
+            emit task.unexpected_command_size_event
+        end
+    end
+
+    it "rejects a command input whose size is greater than the expected" do
+        make_fake_gpio(124, "0")
+        task.properties.w_configuration = { ids: [124] }
+        syskit_configure_and_start(task)
+
+        command = { states: [{ data: 1 }, { data: 1 }] }
+        expect_execution { syskit_write(task.w_commands_port, command) }.to do
+            emit task.unexpected_command_size_event
+        end
+    end
+
     def make_fake_gpio(id, value)
         (@gpio_root / "gpio#{id}").mkpath
         write_fake_gpio(id, value)

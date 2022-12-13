@@ -30,5 +30,5 @@ task_context "Task" do
 
     periodic 0.01
 
-    exception_states :IO_ERROR
+    exception_states :IO_ERROR, :UNEXPECTED_COMMAND_SIZE
 end

@@ -78,6 +78,11 @@ void Task::updateHook()
 void Task::handleWriteSide()
 {
     while (_w_commands.read(m_command, false) == RTT::NewData) {
+        if (m_command.states.size() != m_write_fds.size()) {
+            exception(UNEXPECTED_COMMAND_SIZE);
+            return;
+        }
+
         for (size_t i = 0; i < m_write_fds.size(); ++i) {
             writeGPIO(m_write_fds[i], m_command.states[i].data);
         }
