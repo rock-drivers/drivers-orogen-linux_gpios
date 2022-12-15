@@ -5,12 +5,15 @@
 
 #include "linux_gpios/TaskBase.hpp"
 
-namespace linux_gpios{
+namespace linux_gpios {
 
     /*! \class Task
-     * \brief The task context provides and requires services. It uses an ExecutionEngine to perform its functions.
-     * Essential interfaces are operations, data flow ports and properties. These interfaces have been defined using the oroGen specification.
-     * In order to modify the interfaces you should (re)use oroGen and rely on the associated workflow.
+     * \brief The task context provides and requires services. It uses an ExecutionEngine
+     to perform its functions.
+     * Essential interfaces are operations, data flow ports and properties. These
+     interfaces have been defined using the oroGen specification.
+     * In order to modify the interfaces you should (re)use oroGen and rely on the
+     associated workflow.
      * Task that reads and/or writes GPIOs
      * \details
      * The name of a TaskContext is primarily defined via:
@@ -19,32 +22,33 @@ namespace linux_gpios{
          task('custom_task_name','linux_gpios::Task')
      end
      \endverbatim
-     *  It can be dynamically adapted when the deployment is called with a prefix argument.
+     *  It can be dynamically adapted when the deployment is called with a prefix
+     argument.
      */
-    class Task : public TaskBase
-    {
-	friend class TaskBase;
+    class Task : public TaskBase {
+        friend class TaskBase;
+
     protected:
-
-
-
     public:
         /** TaskContext constructor for Task
-         * \param name Name of the task. This name needs to be unique to make it identifiable via nameservices.
-         * \param initial_state The initial TaskState of the TaskContext. Default is Stopped state.
+         * \param name Name of the task. This name needs to be unique to make it
+         * identifiable via nameservices. \param initial_state The initial TaskState of
+         * the TaskContext. Default is Stopped state.
          */
         Task(std::string const& name = "linux_gpios::Task");
 
         /** TaskContext constructor for Task
-         * \param name Name of the task. This name needs to be unique to make it identifiable for nameservices.
-         * \param engine The RTT Execution engine to be used for this task, which serialises the execution of all commands, programs, state machines and incoming events for a task.
+         * \param name Name of the task. This name needs to be unique to make it
+         * identifiable for nameservices. \param engine The RTT Execution engine to be
+         * used for this task, which serialises the execution of all commands, programs,
+         * state machines and incoming events for a task.
          *
          */
         Task(std::string const& name, RTT::ExecutionEngine* engine);
 
         /** Default deconstructor of Task
          */
-	~Task();
+        ~Task();
 
         /** This hook is called by Orocos when the state machine transitions
          * from PreOperational to Stopped. If it returns false, then the
@@ -105,15 +109,20 @@ namespace linux_gpios{
         void cleanupHook();
 
     private:
+        WriteConfiguration m_write_configuration;
         std::vector<int> m_write_fds;
         std::vector<int> m_read_fds;
 
-        GPIOState mState;
-        GPIOState mCommand;
+        GPIOState m_state;
+        GPIOState m_command;
 
-        static std::vector<int> openGPIOs(Configuration const& config, int mode);
+        static std::vector<int> openGPIOs(std::vector<int32_t> const& ids,
+            int mode,
+            std::string const& sysfs_root_path);
         bool readGPIO(int fd);
         void writeGPIO(int fd, bool value);
+        void writeDefaults();
+        void handleWriteSide();
         void closeAll();
     };
 }

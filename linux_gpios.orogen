@@ -1,4 +1,8 @@
+# frozen_string_literal: true
+
 name "linux_gpios"
+
+using_library "base-logging", typekit: false
 
 import_types_from "std"
 import_types_from "raw_io"
@@ -10,20 +14,28 @@ task_context "Task" do
     # transition to a setup where all components use a configuration step.
     needs_configuration
 
+    # Root of GPIOs in sysfs. Exclusively for testing
+    property "sysfs_gpio_path", "/std/string", "/sys/class/gpio/gpio"
+
+    # Whether the output should be written only when change
+    #
+    # It is false to keep backward compatibility. We recommend setting to true
+    property "edge_triggered_output", "/bool", false
+
     # The set of GPIOs that should be written, as a list of GPIO IDs
-    property "w_configuration", "/linux_gpios/Configuration"
+    property "w_configuration", "/linux_gpios/WriteConfiguration"
 
     # The port on which the 'output' GPIOs can be commanded, in the same order
     # than the 'inputs' property
-    input_port 'w_commands', '/linux_gpios/GPIOState'
+    input_port "w_commands", "/linux_gpios/GPIOState"
 
     # The set of GPIOs that should be read, as a list of GPIO IDs
-    property "r_configuration", "/linux_gpios/Configuration"
+    property "r_configuration", "/linux_gpios/ReadConfiguration"
 
     # The port on which the state of the GPIOs that are read is exported
-    output_port 'r_states', '/linux_gpios/GPIOState'
+    output_port "r_states", "/linux_gpios/GPIOState"
 
     periodic 0.01
 
-    exception_states :IO_ERROR
+    exception_states :IO_ERROR, :UNEXPECTED_COMMAND_SIZE
 end
