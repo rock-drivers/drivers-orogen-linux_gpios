@@ -69,45 +69,45 @@ bool Task::startHook()
 
 void Task::updateHook()
 {
-    handleWriteSide();
+    bool should_output = !_edge_triggered_output.get();
+    should_output = handleWriteSide() || should_output;
 
     auto now = base::Time::now();
-    bool hasUpdate = !_edge_triggered_output.get();
     for (size_t i = 0; i < m_read_fds.size(); ++i) {
         int fd = m_read_fds[i];
         bool value = readGPIO(fd);
         if (m_state.states[i].data != value) {
-            hasUpdate = true;
+            should_output = true;
             m_state.states[i].time = now;
             m_state.states[i].data = value;
         }
     }
-    if (hasUpdate) {
+    if (should_output) {
         m_state.time = now;
         _r_states.write(m_state);
     }
     TaskBase::updateHook();
 }
 
-void Task::handleWriteSide()
+bool Task::handleWriteSide()
 {
     auto now = base::Time::now();
     auto flow = _w_commands.read(m_command, false);
     if (flow == RTT::NoData) {
         writeDefaults();
-        return;
+        return false;
     }
     else if (flow == RTT::OldData) {
         if (m_command.time + m_write_configuration.timeout < now) {
             writeDefaults();
         }
-        return;
+        return false;
     }
 
     while (flow == RTT::NewData) {
         if (m_command.states.size() != m_write_fds.size()) {
             exception(UNEXPECTED_COMMAND_SIZE);
-            return;
+            return false;
         }
 
         // Update the time for timeout/defaults handling
@@ -117,6 +117,7 @@ void Task::handleWriteSide()
         }
         flow = _w_commands.read(m_command, false);
     }
+    return true;
 }
 
 void Task::writeDefaults()

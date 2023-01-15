@@ -72,7 +72,7 @@ describe OroGen.linux_gpios.Task do
         expect_execution.to { have_new_samples(task.r_states_port, 10) }
     end
 
-    it "writes only on state change if edge_triggered_output is set" do
+    it "does not write if there are no state changes when edge_triggered_output is set" do
         make_fake_gpio(124, false)
         task.properties.edge_triggered_output = true
         task.properties.r_configuration = { ids: [124] }
@@ -105,7 +105,25 @@ describe OroGen.linux_gpios.Task do
         end
     end
 
-    it "writes the default value on start and reports the initial value if it changed" do
+    it "with edge_triggered_output set, writes the current value when it receives "\
+       "a command, regardless of whether the value changed" do
+        make_fake_gpio(124, false)
+        task.properties.w_configuration = { ids: [124] }
+        task.properties.r_configuration = { ids: [124] }
+        task.properties.edge_triggered_output = true
+        syskit_configure_and_start(task)
+
+        r_states_reader = syskit_create_reader task.r_states_port
+        command = { states: [{ data: 0 }] }
+        sample = expect_execution { syskit_write(task.w_commands_port, command) }.to do
+            have_one_new_sample(r_states_reader)
+        end
+
+        assert_equal 0, sample.states[0].data
+    end
+
+    it "with edge_triggered_output set, writes the default value on start and "\
+       "reports the initial value if it changed" do
         make_fake_gpio(124, false)
         task.properties.w_configuration = {
             ids: [124], defaults: [1], timeout: Time.at(20)

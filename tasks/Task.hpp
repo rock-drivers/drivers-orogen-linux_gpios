@@ -122,7 +122,7 @@ namespace linux_gpios {
         bool readGPIO(int fd);
         void writeGPIO(int fd, bool value);
         void writeDefaults();
-        void handleWriteSide();
+        bool handleWriteSide();
         void closeAll();
     };
 }
