@@ -33,6 +33,15 @@ task_context "Task" do
     property "r_configuration", "/linux_gpios/ReadConfiguration"
 
     # The port on which the state of the GPIOs that are read is exported
+    #
+    # If edge_triggered_output is set to false, this port will periodically
+    # publish the GPIO state. If edge_triggered_output is set, the component
+    # will publish the state when it changes and when the w_states port is
+    # written. This latter condition allows to wait for a GPIO state to change,
+    # regardless of the curent state of the GPIO
+    #
+    # - create reader and writer
+    # - write state until it is reported as being the expected new state
     output_port "r_states", "/linux_gpios/GPIOState"
 
     periodic 0.01
