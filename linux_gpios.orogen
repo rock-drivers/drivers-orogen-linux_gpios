@@ -15,7 +15,7 @@ task_context "Task" do
     needs_configuration
 
     # Root of GPIOs in sysfs. Exclusively for testing
-    property "sysfs_gpio_path", "/std/string", "/sys/class/gpio/gpio"
+    property "sysfs_gpio_path", "/std/string", "/sys/class/gpio"
 
     # Whether the output should be written only when change
     #
