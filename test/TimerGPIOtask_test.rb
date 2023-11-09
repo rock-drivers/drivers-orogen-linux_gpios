@@ -131,7 +131,10 @@ describe OroGen.linux_gpios.TimerGPIOTask do
         expect_execution { task.start! }
             .join_all_waiting_work(false)
             .poll { feedback_writer.write(on_state) }
-            .to { emit task.start_event }
+            .to do
+                have_one_new_sample(task.deadline_port)
+                emit task.start_event
+            end
     end
 
     def create_message(data:)

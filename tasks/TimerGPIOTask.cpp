@@ -43,6 +43,7 @@ bool TimerGPIOTask::startHook()
     }
 
     m_deadline = base::Time::now() + _duration.get();
+    _deadline.write(m_deadline);
     return true;
 }
 void TimerGPIOTask::updateHook()

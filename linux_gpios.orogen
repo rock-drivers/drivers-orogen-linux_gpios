@@ -71,6 +71,7 @@ task_context "TimerGPIOTask" do
 
     input_port "feedback", "/linux_gpios/GPIOState"
     output_port "gpio_state", "/linux_gpios/GPIOState"
+    output_port "deadline", "base/Time"
 
     periodic 0.01
 end
