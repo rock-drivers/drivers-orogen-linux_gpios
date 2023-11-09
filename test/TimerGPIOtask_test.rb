@@ -29,6 +29,7 @@ describe OroGen.linux_gpios.TimerGPIOTask do
                 .to do
                     have_one_new_sample(task.gpio_state_port)
                         .matching { |v| v.states[0].data == 0 }
+                    have_one_new_sample(task.deadline_port)
                 end
             toc = Time.now
 
@@ -107,6 +108,7 @@ describe OroGen.linux_gpios.TimerGPIOTask do
                   .deployed_as("timer_gpio_test")
         )
 
+        task.properties.deadline_report = Time.at(1)
         task.properties.feedback_timeout = Time.at(0.5)
         task.properties.switch_timeout = Time.at(switch_timeout)
         task.properties.set_state = true
@@ -131,10 +133,7 @@ describe OroGen.linux_gpios.TimerGPIOTask do
         expect_execution { task.start! }
             .join_all_waiting_work(false)
             .poll { feedback_writer.write(on_state) }
-            .to do
-                have_one_new_sample(task.deadline_port)
-                emit task.start_event
-            end
+            .to { emit task.start_event }
     end
 
     def create_message(data:)

@@ -37,25 +37,32 @@ bool TimerGPIOTask::startHook()
     try {
         writeMessageAndCheckFeedback(m_switch_timeout, _set_state.get());
     }
-    catch(...) {
+    catch (...) {
         writeMessageAndCheckFeedback(m_switch_timeout, !_set_state.get());
         throw;
     }
 
     m_deadline = base::Time::now() + _duration.get();
-    _deadline.write(m_deadline);
+    m_deadline_report = base::Time::now();
+
     return true;
 }
 void TimerGPIOTask::updateHook()
 {
     TimerGPIOTaskBase::updateHook();
 
-    if (base::Time::now() < m_deadline) {
+    auto now = base::Time::now();
+    if (now < m_deadline) {
         writeMessageAndCheckFeedback(m_timeout, _set_state.get());
     }
     else {
         writeMessageAndCheckFeedback(m_timeout, !_set_state.get());
         stop();
+    }
+
+    if (now >= m_deadline_report) {
+        _deadline.write(m_deadline);
+        m_deadline_report = m_deadline_report + _deadline_report.get();
     }
 }
 void TimerGPIOTask::errorHook()

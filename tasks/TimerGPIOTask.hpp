@@ -33,6 +33,7 @@ namespace linux_gpios {
         base::Time m_switch_timeout;
         base::Time m_deadline;
         base::Time m_timeout;
+        base::Time m_deadline_report;
 
     public:
         /** TaskContext constructor for TimerGPIOTask

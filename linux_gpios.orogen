@@ -52,10 +52,14 @@ end
 task_context "TimerGPIOTask" do
     needs_configuration
 
-    # How long the task will wait for a state transition to be confirmed
-    #
-    # This applies on start and stop transitions
-    property "switch_timeout", "/base/Time"
+    # The "ON" state to be sent to the GPIO
+    property "set_state", "/bool", true
+
+    # How long the GPIO should be maintained in the "set_state" state
+    property "duration", "/base/Time"
+
+    # How oft should report when the command will finish
+    property "deadline_report", "/base/Time"
 
     # How long the task will accept not receiving a feedback from the GPIO
     # during its execution
@@ -63,14 +67,18 @@ task_context "TimerGPIOTask" do
     # Will cause the task to stop in an exception state, trying to turn the GPIO off
     property "feedback_timeout", "/base/Time"
 
-    # How long the GPIO should be maintained in the "set_state" state
-    property "duration", "/base/Time"
+    # How long the task will wait for a state transition to be confirmed
+    #
+    # This applies on start and stop transitions
+    property "switch_timeout", "/base/Time"
 
-    # The "ON" state to be sent to the GPIO
-    property "set_state", "/bool", true
-
+    # GPIO feedback input
     input_port "feedback", "/linux_gpios/GPIOState"
+
+    # Controlled GPIO output
     output_port "gpio_state", "/linux_gpios/GPIOState"
+
+    # Deadline to complete the command
     output_port "deadline", "base/Time"
 
     periodic 0.01
