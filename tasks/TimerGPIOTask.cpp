@@ -10,6 +10,9 @@ using namespace linux_gpios;
 TimerGPIOTask::TimerGPIOTask(std::string const& name)
     : TimerGPIOTaskBase(name)
 {
+    _deadline_report.set(base::Time::fromSeconds(1));
+    _feedback_timeout.set(base::Time::fromSeconds(1));
+    _switch_timeout.set(base::Time::fromSeconds(1));
 }
 
 TimerGPIOTask::~TimerGPIOTask()
