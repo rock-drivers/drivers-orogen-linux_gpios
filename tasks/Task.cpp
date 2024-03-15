@@ -200,9 +200,8 @@ void Task::closeAll()
 
 void Task::writeGPIO(int fd, bool value)
 {
-    lseek(fd, 0, SEEK_SET);
     char buf = value ? '1' : '0';
-    int ret = write(fd, &buf, 1);
+    int ret = pwrite(fd, &buf, 1, 0);
     if (ret != 1) {
         exception(IO_ERROR);
         throw std::runtime_error("failed to write GPIO status");
@@ -211,9 +210,8 @@ void Task::writeGPIO(int fd, bool value)
 
 bool Task::readGPIO(int fd)
 {
-    lseek(fd, 0, SEEK_SET);
     char buf;
-    int ret = read(fd, &buf, 1);
+    int ret = pread(fd, &buf, 1, 0);
     if (ret != 1) {
         exception(IO_ERROR);
         throw std::runtime_error("failed to read GPIO status");
