@@ -81,5 +81,5 @@ task_context "TimerGPIOTask" do
     # Deadline to complete the command
     output_port "deadline", "base/Time"
 
-    periodic 0.01
+    periodic 0.1
 end
