@@ -226,7 +226,7 @@ describe OroGen.linux_gpios.Task do
             sample = expect_execution do
                 syskit_write controller.w_commands_port, command
                 break_and_reestablish_connection
-            end.to do
+            end.to do # rubocop:disable Style/MultilineBlockChain
                 have_one_new_sample(state.r_states_port)
             end
 
@@ -241,7 +241,7 @@ describe OroGen.linux_gpios.Task do
             sample = expect_execution do
                 syskit_write controller.w_commands_port, command
                 break_and_reestablish_connection(delay: 1)
-            end.to do
+            end.to do # rubocop:disable Style/MultilineBlockChain
                 have_one_new_sample(state.r_states_port)
             end
 
@@ -257,7 +257,7 @@ describe OroGen.linux_gpios.Task do
                 3.times do
                     break_and_reestablish_connection
                 end
-            end.to do
+            end.to do # rubocop:disable Style/MultilineBlockChain
                 have_one_new_sample(state.r_states_port)
             end
 
