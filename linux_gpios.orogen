@@ -42,7 +42,8 @@ task_context "Task" do
     #
     # - create reader and writer
     # - write state until it is reported as being the expected new state
-    output_port "r_states", "/linux_gpios/GPIOState"
+    output_port("r_states", "/linux_gpios/GPIOState")
+        .keep_last_written_value(true)
 
     periodic 0.01
 

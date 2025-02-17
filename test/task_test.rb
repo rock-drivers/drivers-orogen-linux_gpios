@@ -7,177 +7,288 @@ using_task_library "linux_gpios"
 describe OroGen.linux_gpios.Task do
     run_live
 
-    attr_reader :task
+    describe "general functionality" do
+        attr_reader :task
 
-    before do
-        @gpio_root = Pathname(Dir.mktmpdir)
+        before do
+            @gpio_root = Pathname(Dir.mktmpdir)
 
-        @task = syskit_deploy(
-            OroGen.linux_gpios.Task
-                  .deployed_as("task_under_test")
-        )
-        @task.properties.sysfs_gpio_path = @gpio_root.to_s
-    end
+            @task = syskit_deploy(
+                OroGen.linux_gpios.Task
+                    .deployed_as("task_under_test")
+            )
+            @task.properties.sysfs_gpio_path = @gpio_root.to_s
+        end
 
-    after do
-        @gpio_root&.rmtree
-    end
+        after do
+            @gpio_root&.rmtree
+        end
 
-    it "fails to configure if a GPIO does not exist" do
-        task.properties.r_configuration = { ids: [124] }
-        assert_raises(Roby::EmissionFailed) do
+        it "fails to configure if a GPIO does not exist" do
+            task.properties.r_configuration = { ids: [124] }
+            assert_raises(Roby::EmissionFailed) do
+                syskit_configure(task)
+            end
+        end
+
+        it "outputs the initial state of the GPIO on start" do
+            make_fake_gpio(124, false)
+            task.properties.r_configuration = { ids: [124] }
             syskit_configure(task)
-        end
-    end
 
-    it "fails to configure if a GPIO does not exist" do
-        task.properties.r_configuration = { ids: [124] }
-        assert_raises(Roby::EmissionFailed) do
+            sample = expect_execution { task.start! }.to do
+                have_one_new_sample task.r_states_port
+            end
+
+            assert_equal [0], sample.states.map(&:data)
+        end
+
+        it "writes a new state and reads it back" do
+            make_fake_gpio(124, false)
+            task.properties.w_configuration = { ids: [124] }
+            task.properties.r_configuration = { ids: [124] }
+            syskit_configure_and_start(task)
+
+            command = { states: [{ data: 1 }] }
+            expect_execution { syskit_write(task.w_commands_port, command) }.to do
+                have_one_new_sample(task.r_states_port)
+                    .matching { |s| s.states[0].data != 0 }
+            end
+
+            assert read_fake_gpio(124)
+        end
+
+        it "outputs the current state periodically by default" do
+            make_fake_gpio(124, false)
+            task.properties.r_configuration = { ids: [124] }
+            syskit_configure_and_start(task)
+
+            expect_execution.to { have_new_samples(task.r_states_port, 10) }
+        end
+
+        it "does not write if there are no state changes when " \
+           "edge_triggered_output is set" do
+            make_fake_gpio(124, false)
+            task.properties.edge_triggered_output = true
+            task.properties.r_configuration = { ids: [124] }
+            syskit_configure_and_start(task)
+
+            expect_execution.to do
+                have_no_new_sample(task.r_states_port, at_least_during: 1)
+            end
+        end
+
+        it "rejects a command input whose size is lower than the expected" do
+            make_fake_gpio(124, false)
+            task.properties.w_configuration = { ids: [124] }
+            syskit_configure_and_start(task)
+
+            command = { states: [] }
+            expect_execution { syskit_write(task.w_commands_port, command) }.to do
+                emit task.unexpected_command_size_event
+            end
+        end
+
+        it "rejects a command input whose size is greater than the expected" do
+            make_fake_gpio(124, false)
+            task.properties.w_configuration = { ids: [124] }
+            syskit_configure_and_start(task)
+
+            command = { states: [{ data: 1 }, { data: 1 }] }
+            expect_execution { syskit_write(task.w_commands_port, command) }.to do
+                emit task.unexpected_command_size_event
+            end
+        end
+
+        it "with edge_triggered_output set, writes the current value when it " \
+           "receives a command, regardless of whether the value changed" do
+            make_fake_gpio(124, false)
+            task.properties.w_configuration = { ids: [124] }
+            task.properties.r_configuration = { ids: [124] }
+            task.properties.edge_triggered_output = true
+            syskit_configure_and_start(task)
+
+            r_states_reader = syskit_create_reader task.r_states_port
+            command = { states: [{ data: 0 }] }
+            sample = expect_execution do
+                syskit_write(task.w_commands_port, command)
+            end.to do # rubocop:disable Style/MultilineBlockChain
+                have_one_new_sample(r_states_reader)
+            end
+
+            assert_equal 0, sample.states[0].data
+        end
+
+        it "with edge_triggered_output set, writes the default value on start and " \
+           "reports the initial value if it changed" do
+            make_fake_gpio(124, false)
+            task.properties.w_configuration = {
+                ids: [124], defaults: [1], timeout: Time.at(20)
+            }
+            task.properties.r_configuration = { ids: [124] }
+            task.properties.edge_triggered_output = true
             syskit_configure(task)
+
+            samples = expect_execution { task.start! }.to do
+                have_new_samples(task.r_states_port, 2)
+            end
+
+            assert read_fake_gpio(124)
+            assert_equal 0, samples[0].states[0].data
+            assert_equal 1, samples[1].states[0].data
+        end
+
+        it "writes the default value if the port is disconnected" do
+            make_fake_gpio(124, false)
+            task.properties.w_configuration = {
+                ids: [124], defaults: [0], timeout: Time.at(600)
+            }
+            syskit_configure_and_start(task)
+
+            w = syskit_create_writer(task.w_commands_port)
+
+            command = { states: [{ data: 1 }] }
+            expect_execution { syskit_write(w, command) }.to do
+                achieve { read_fake_gpio(124) }
+            end
+            w.disconnect
+
+            expect_execution.to do
+                achieve { !read_fake_gpio(124) }
+            end
+        end
+
+        it "writes the default value if no new samples "\
+           "are received within the configured timeout" do
+            make_fake_gpio(124, false)
+            task.properties.w_configuration = {
+                ids: [124], defaults: [0], timeout: Time.at(0.5)
+            }
+            syskit_configure_and_start(task)
+
+            w = syskit_create_writer(task.w_commands_port)
+
+            command = { states: [{ data: 1 }] }
+            expect_execution { syskit_write(w, command) }.to do
+                achieve { read_fake_gpio(124) }
+            end
+
+            sleep(0.8)
+            refute read_fake_gpio(124)
         end
     end
 
-    it "outputs the initial state of the GPIO on start" do
-        make_fake_gpio(124, false)
-        task.properties.r_configuration = { ids: [124] }
-        syskit_configure(task)
+    describe "using 'init' connection" do
+        attr_reader :controller, :state
 
-        sample = expect_execution { task.start! }.to do
-            have_one_new_sample task.r_states_port
+        before do
+            @gpio_root = Pathname(Dir.mktmpdir)
+
+            @controller = syskit_deploy(
+                OroGen.linux_gpios.Task
+                    .deployed_as("controller_task_under_test")
+                    .with_arguments(name: "controller")
+            )
+            @controller.properties.sysfs_gpio_path = @gpio_root.to_s
+            @controller.properties.edge_triggered_output = true
+
+            @state = syskit_deploy(
+                OroGen.linux_gpios.Task
+                    .deployed_as("state_task_under_test")
+                    .with_arguments(name: "state")
+            )
+            @state.properties.sysfs_gpio_path = @gpio_root.to_s
+            @state.properties.edge_triggered_output = true
         end
 
-        assert_equal [0], sample.states.map(&:data)
-    end
-
-    it "writes a new state and reads it back" do
-        make_fake_gpio(124, false)
-        task.properties.w_configuration = { ids: [124] }
-        task.properties.r_configuration = { ids: [124] }
-        syskit_configure_and_start(task)
-
-        command = { states: [{ data: 1 }] }
-        expect_execution { syskit_write(task.w_commands_port, command) }.to do
-            have_one_new_sample(task.r_states_port)
-                .matching { |s| s.states[0].data != 0 }
+        after do
+            @gpio_root&.rmtree
         end
 
-        assert read_fake_gpio(124)
-    end
-
-    it "outputs the current state periodically by default" do
-        make_fake_gpio(124, false)
-        task.properties.r_configuration = { ids: [124] }
-        syskit_configure_and_start(task)
-
-        expect_execution.to { have_new_samples(task.r_states_port, 10) }
-    end
-
-    it "does not write if there are no state changes when edge_triggered_output is set" do
-        make_fake_gpio(124, false)
-        task.properties.edge_triggered_output = true
-        task.properties.r_configuration = { ids: [124] }
-        syskit_configure_and_start(task)
-
-        expect_execution.to do
-            have_no_new_sample(task.r_states_port, at_least_during: 1)
-        end
-    end
-
-    it "rejects a command input whose size is lower than the expected" do
-        make_fake_gpio(124, false)
-        task.properties.w_configuration = { ids: [124] }
-        syskit_configure_and_start(task)
-
-        command = { states: [] }
-        expect_execution { syskit_write(task.w_commands_port, command) }.to do
-            emit task.unexpected_command_size_event
-        end
-    end
-
-    it "rejects a command input whose size is greater than the expected" do
-        make_fake_gpio(124, false)
-        task.properties.w_configuration = { ids: [124] }
-        syskit_configure_and_start(task)
-
-        command = { states: [{ data: 1 }, { data: 1 }] }
-        expect_execution { syskit_write(task.w_commands_port, command) }.to do
-            emit task.unexpected_command_size_event
-        end
-    end
-
-    it "with edge_triggered_output set, writes the current value when it receives "\
-       "a command, regardless of whether the value changed" do
-        make_fake_gpio(124, false)
-        task.properties.w_configuration = { ids: [124] }
-        task.properties.r_configuration = { ids: [124] }
-        task.properties.edge_triggered_output = true
-        syskit_configure_and_start(task)
-
-        r_states_reader = syskit_create_reader task.r_states_port
-        command = { states: [{ data: 0 }] }
-        sample = expect_execution { syskit_write(task.w_commands_port, command) }.to do
-            have_one_new_sample(r_states_reader)
+        it "does not keep last written value when a new connection is established " \
+           "without 'init: true'" do
+            configure_and_start_tasks
+            connect_tasks
+            command = { states: [{ data: 0 }] }
+            expect_execution do
+                syskit_write controller.w_commands_port, command
+                break_and_reestablish_connection(init: false)
+            end.to do # rubocop:disable Style/MultilineBlockChain
+                have_no_new_sample(state.r_states_port)
+            end
         end
 
-        assert_equal 0, sample.states[0].data
-    end
+        it "keeps last written value when a new connection is established " \
+           "with 'init: true'" do
+            configure_and_start_tasks
+            connect_tasks
+            command = { states: [{ data: 0 }] }
+            sample = expect_execution do
+                syskit_write controller.w_commands_port, command
+                break_and_reestablish_connection
+            end.to do # rubocop:disable Style/MultilineBlockChain
+                have_one_new_sample(state.r_states_port)
+            end
 
-    it "with edge_triggered_output set, writes the default value on start and "\
-       "reports the initial value if it changed" do
-        make_fake_gpio(124, false)
-        task.properties.w_configuration = {
-            ids: [124], defaults: [1], timeout: Time.at(20)
-        }
-        task.properties.r_configuration = { ids: [124] }
-        task.properties.edge_triggered_output = true
-        syskit_configure(task)
-
-        samples = expect_execution { task.start! }.to do
-            have_new_samples(task.r_states_port, 2)
+            assert_equal 0, sample.states[0].data
         end
 
-        assert read_fake_gpio(124)
-        assert_equal 0, samples[0].states[0].data
-        assert_equal 1, samples[1].states[0].data
-    end
+        it "keeps last written value even after a delay when reconnected " \
+           "with 'init: true'" do
+            configure_and_start_tasks
+            connect_tasks
+            command = { states: [{ data: 0 }] }
+            sample = expect_execution do
+                syskit_write controller.w_commands_port, command
+                break_and_reestablish_connection(delay: 1)
+            end.to do # rubocop:disable Style/MultilineBlockChain
+                have_one_new_sample(state.r_states_port)
+            end
 
-    it "writes the default value if the port is disconnected" do
-        make_fake_gpio(124, false)
-        task.properties.w_configuration = {
-            ids: [124], defaults: [0], timeout: Time.at(600)
-        }
-        syskit_configure_and_start(task)
-
-        w = syskit_create_writer(task.w_commands_port)
-
-        command = { states: [{ data: 1 }] }
-        expect_execution { syskit_write(w, command) }.to do
-            achieve { read_fake_gpio(124) }
-        end
-        w.disconnect
-
-        expect_execution.to do
-            achieve { !read_fake_gpio(124) }
-        end
-    end
-
-    it "writes the default value if no new samples "\
-       "are received within the configured timeout" do
-        make_fake_gpio(124, false)
-        task.properties.w_configuration = {
-            ids: [124], defaults: [0], timeout: Time.at(0.5)
-        }
-        syskit_configure_and_start(task)
-
-        w = syskit_create_writer(task.w_commands_port)
-
-        command = { states: [{ data: 1 }] }
-        expect_execution { syskit_write(w, command) }.to do
-            achieve { read_fake_gpio(124) }
+            assert_equal 0, sample.states[0].data
         end
 
-        sleep(0.8)
-        refute read_fake_gpio(124)
+        it "keeps the last value even after multiple disconnections and reconnections" do
+            configure_and_start_tasks
+            connect_tasks
+            command = { states: [{ data: 0 }] }
+            sample = expect_execution do
+                syskit_write controller.w_commands_port, command
+                3.times do
+                    break_and_reestablish_connection
+                end
+            end.to do # rubocop:disable Style/MultilineBlockChain
+                have_one_new_sample(state.r_states_port)
+            end
+
+            assert_equal 0, sample.states[0].data
+        end
+
+        def configure_and_start_tasks
+            make_fake_gpio(42, true)
+            controller.properties.w_configuration = { ids: [42] }
+            syskit_configure_and_start(controller)
+            state.properties.r_configuration = { ids: [42] }
+            syskit_configure_and_start(state)
+        end
+
+        def break_and_reestablish_connection(init: true, delay: 0)
+            controller.disconnect_ports(state, [%w[r_states w_commands]])
+            sleep(delay) if delay > 0
+            controller.connect_to state, init: init
+        end
+
+        def connect_tasks
+            cmp_m = Syskit::Composition.new_submodel do
+                add OroGen.linux_gpios.Task, as: "controller"
+                add OroGen.linux_gpios.Task, as: "state"
+
+                controller_child.connect_to state_child, init: true
+            end
+            syskit_stub_deploy_configure_and_start(
+                cmp_m.use("controller" => controller, "state" => state)
+            )
+        end
     end
 
     def make_fake_gpio(id, value)
