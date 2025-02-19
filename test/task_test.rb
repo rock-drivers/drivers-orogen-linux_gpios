@@ -179,26 +179,19 @@ describe OroGen.linux_gpios.Task do
     end
 
     describe "using 'init' connection" do
-        attr_reader :controller, :state
+        attr_reader :task
 
         before do
             @gpio_root = Pathname(Dir.mktmpdir)
+            make_fake_gpio(42, true)
 
-            @controller = syskit_deploy(
+            @task = syskit_deploy(
                 OroGen.linux_gpios.Task
-                    .deployed_as("controller_task_under_test")
-                    .with_arguments(name: "controller")
+                    .deployed_as("task_under_test")
+                    .with_arguments(name: "task")
             )
-            @controller.properties.sysfs_gpio_path = @gpio_root.to_s
-            @controller.properties.edge_triggered_output = true
-
-            @state = syskit_deploy(
-                OroGen.linux_gpios.Task
-                    .deployed_as("state_task_under_test")
-                    .with_arguments(name: "state")
-            )
-            @state.properties.sysfs_gpio_path = @gpio_root.to_s
-            @state.properties.edge_triggered_output = true
+            @task.properties.sysfs_gpio_path = @gpio_root.to_s
+            @task.properties.edge_triggered_output = true
         end
 
         after do
@@ -206,88 +199,71 @@ describe OroGen.linux_gpios.Task do
         end
 
         it "does not keep last written value when a new connection is established " \
-           "without 'init: true'" do
-            configure_and_start_tasks
-            connect_tasks
-            command = { states: [{ data: 0 }] }
+           "with 'init: false'" do
+            configure_and_start_task
+            command = { states: [{ data: 0 }], time: Time.now }
+
+            data_reader = syskit_create_reader task.r_states_port, init: false
             expect_execution do
-                syskit_write controller.w_commands_port, command
-                break_and_reestablish_connection(init: false)
+                syskit_write task.w_commands_port, command
             end.to do # rubocop:disable Style/MultilineBlockChain
-                have_no_new_sample(state.r_states_port)
+                have_one_new_sample(data_reader)
+            end
+            refute read_fake_gpio(42)
+
+            expect_execution do
+                data_reader.disconnect
+                data_reader = syskit_create_reader task.r_states_port, init: false
+            end.to do # rubocop:disable Style/MultilineBlockChain
+                have_no_new_sample(data_reader, at_least_during: 1)
             end
         end
 
         it "keeps last written value when a new connection is established " \
            "with 'init: true'" do
-            configure_and_start_tasks
-            connect_tasks
-            command = { states: [{ data: 0 }] }
-            sample = expect_execution do
-                syskit_write controller.w_commands_port, command
-                break_and_reestablish_connection
+            configure_and_start_task
+            command = { states: [{ data: 0 }], time: Time.now }
+
+            data_reader = syskit_create_reader task.r_states_port, init: true
+            samples = expect_execution do
+                syskit_write task.w_commands_port, command
             end.to do # rubocop:disable Style/MultilineBlockChain
-                have_one_new_sample(state.r_states_port)
+                have_new_samples(data_reader, 2)
             end
+            assert_equal 1, samples[0].states[0].data
+            assert_equal 0, samples[1].states[0].data
 
-            assert_equal 0, sample.states[0].data
-        end
-
-        it "keeps last written value even after a delay when reconnected " \
-           "with 'init: true'" do
-            configure_and_start_tasks
-            connect_tasks
-            command = { states: [{ data: 0 }] }
-            sample = expect_execution do
-                syskit_write controller.w_commands_port, command
-                break_and_reestablish_connection(delay: 1)
-            end.to do # rubocop:disable Style/MultilineBlockChain
-                have_one_new_sample(state.r_states_port)
-            end
-
-            assert_equal 0, sample.states[0].data
+            data_reader.disconnect
+            data_reader = syskit_create_reader task.r_states_port, init: true
+            expect_execution.to { have_one_new_sample(data_reader) }
+            refute read_fake_gpio(42)
         end
 
         it "keeps the last value even after multiple disconnections and reconnections" do
-            configure_and_start_tasks
-            connect_tasks
-            command = { states: [{ data: 0 }] }
-            sample = expect_execution do
-                syskit_write controller.w_commands_port, command
-                3.times do
-                    break_and_reestablish_connection
-                end
+            configure_and_start_task
+            command = { states: [{ data: 0 }], time: Time.now }
+
+            data_reader = syskit_create_reader task.r_states_port, init: true
+            samples = expect_execution do
+                syskit_write task.w_commands_port, command
             end.to do # rubocop:disable Style/MultilineBlockChain
-                have_one_new_sample(state.r_states_port)
+                have_new_samples(data_reader, 2)
             end
+            assert_equal 1, samples[0].states[0].data
+            assert_equal 0, samples[1].states[0].data
 
-            assert_equal 0, sample.states[0].data
-        end
-
-        def configure_and_start_tasks
-            make_fake_gpio(42, true)
-            controller.properties.w_configuration = { ids: [42] }
-            syskit_configure_and_start(controller)
-            state.properties.r_configuration = { ids: [42] }
-            syskit_configure_and_start(state)
-        end
-
-        def break_and_reestablish_connection(init: true, delay: 0)
-            controller.disconnect_ports(state, [%w[r_states w_commands]])
-            sleep(delay) if delay > 0
-            controller.connect_to state, init: init
-        end
-
-        def connect_tasks
-            cmp_m = Syskit::Composition.new_submodel do
-                add OroGen.linux_gpios.Task, as: "controller"
-                add OroGen.linux_gpios.Task, as: "state"
-
-                controller_child.connect_to state_child, init: true
+            3.times do
+                data_reader.disconnect
+                data_reader = syskit_create_reader task.r_states_port, init: true
             end
-            syskit_stub_deploy_configure_and_start(
-                cmp_m.use("controller" => controller, "state" => state)
-            )
+            expect_execution.to { have_one_new_sample(data_reader) }
+            refute read_fake_gpio(42)
+        end
+
+        def configure_and_start_task
+            task.properties.w_configuration = { ids: [42] }
+            task.properties.r_configuration = { ids: [42] }
+            syskit_configure_and_start(task)
         end
     end
 
