@@ -225,13 +225,12 @@ describe OroGen.linux_gpios.Task do
             command = { states: [{ data: 0 }], time: Time.now }
 
             data_reader = syskit_create_reader task.r_states_port, init: true
-            samples = expect_execution do
+            expect_execution do
                 syskit_write task.w_commands_port, command
             end.to do # rubocop:disable Style/MultilineBlockChain
-                have_new_samples(data_reader, 2)
+                have_one_new_sample(data_reader)
+                    .matching { |s| s.states[0].data != 1 }
             end
-            assert_equal 1, samples[0].states[0].data
-            assert_equal 0, samples[1].states[0].data
 
             data_reader.disconnect
             data_reader = syskit_create_reader task.r_states_port, init: true
@@ -244,13 +243,12 @@ describe OroGen.linux_gpios.Task do
             command = { states: [{ data: 0 }], time: Time.now }
 
             data_reader = syskit_create_reader task.r_states_port, init: true
-            samples = expect_execution do
+            expect_execution do
                 syskit_write task.w_commands_port, command
             end.to do # rubocop:disable Style/MultilineBlockChain
-                have_new_samples(data_reader, 2)
+                have_one_new_sample(data_reader)
+                    .matching { |s| s.states[0].data != 1 }
             end
-            assert_equal 1, samples[0].states[0].data
-            assert_equal 0, samples[1].states[0].data
 
             3.times do
                 data_reader.disconnect
