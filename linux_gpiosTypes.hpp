@@ -25,10 +25,14 @@ namespace linux_gpios {
     };
 
     struct ReadPathConfiguration {
+        /** A vector of the gpio absolute paths to be read. E.g.
+         * "/dev/gpio_test", where there is a value to be read in this path */
         std::vector<std::string> gpio_paths;
     };
 
     struct WritePathConfiguration {
+        /** A vector of the gpio absolute paths to be written. E.g.
+         * "/dev/gpio_test", where there is a value to be written in this path */
         std::vector<std::string> gpio_paths;
 
         /** How long without input before the component writes default values */

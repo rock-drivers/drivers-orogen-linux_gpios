@@ -35,20 +35,28 @@ bool GPIOPathTask::configureHook()
         return false;
 
     m_write_configuration = _w_configuration.get();
-    if (!m_write_configuration.defaults.empty()) {
-        if (m_write_configuration.defaults.size() !=
-            m_write_configuration.gpio_paths.size()) {
-            LOG_ERROR_S
-                << "defaults array and gpio_paths array have different sizes in write "
-                   "configuration"
-                << std::endl;
-            return false;
-        }
+
+    if (!validateWriteConfigurationSizes(m_write_configuration.defaults.size(),
+            m_write_configuration.gpio_paths.size())) {
+        return false;
     }
+
     m_write_fds = openGPIOs(m_write_configuration.gpio_paths, O_WRONLY);
     m_command.states.resize(m_write_fds.size());
     m_read_fds = openGPIOs(_r_configuration.get().gpio_paths, O_RDONLY);
     m_state.states.resize(m_read_fds.size());
+    return true;
+}
+
+bool GPIOPathTask::validateWriteConfigurationSizes(size_t default_size,
+    size_t gpio_paths_size)
+{
+    if (default_size != 0 && default_size != gpio_paths_size) {
+        LOG_ERROR_S << "Defaults array with size " << default_size
+                    << " and gpio_paths array with size " << gpio_paths_size
+                    << " have different sizes in write configuration" << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -171,8 +179,7 @@ namespace {
     };
 }
 
-std::vector<int> GPIOPathTask::openGPIOs(std::vector<string> const& gpio_paths,
-    int mode)
+std::vector<int> GPIOPathTask::openGPIOs(std::vector<string> const& gpio_paths, int mode)
 {
     CloseGuard guard;
     for (string gpio_path : gpio_paths) {

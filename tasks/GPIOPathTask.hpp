@@ -109,6 +109,7 @@ namespace linux_gpios {
         void cleanupHook();
 
     private:
+        bool validateWriteConfigurationSizes(size_t default_size, size_t gpio_paths_size);
         WritePathConfiguration m_write_configuration;
         std::vector<int> m_write_fds;
         std::vector<int> m_read_fds;
