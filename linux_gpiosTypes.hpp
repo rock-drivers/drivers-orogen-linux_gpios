@@ -24,6 +24,24 @@ namespace linux_gpios {
         std::vector<uint8_t> defaults;
     };
 
+    struct ReadPathConfiguration {
+        std::vector<std::string> gpio_paths;
+    };
+
+    struct WritePathConfiguration {
+        std::vector<std::string> gpio_paths;
+
+        /** How long without input before the component writes default values */
+        base::Time timeout;
+
+        /** If non-empty, values to write to the GPIOs if it has no explicit command
+         *
+         * Default values are written if there was no command for `timeout`, or if
+         * there is nothing connected to the command port
+         */
+        std::vector<uint8_t> defaults;
+    };
+
     struct GPIOState {
         base::Time time;
         std::vector<raw_io::Digital> states;
