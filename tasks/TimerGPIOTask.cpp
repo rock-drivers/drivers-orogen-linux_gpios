@@ -60,7 +60,6 @@ void TimerGPIOTask::updateHook()
         writeMessageAndCheckFeedback(m_timeout, _set_state.get());
     }
     else {
-        writeMessageAndCheckFeedback(m_timeout, !_set_state.get());
         stop();
     }
 
@@ -86,6 +85,7 @@ void TimerGPIOTask::exceptionHook()
 void TimerGPIOTask::stopHook()
 {
     TimerGPIOTaskBase::stopHook();
+    writeMessageAndCheckFeedback(m_timeout, !_set_state.get());
 }
 void TimerGPIOTask::cleanupHook()
 {
