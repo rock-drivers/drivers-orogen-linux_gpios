@@ -41,6 +41,27 @@ describe OroGen.linux_gpios.TimerGPIOTask do
                    "expected the true state to be sent for at least 1.5 seconds, "\
                    "but got #{toc - tic}"
         end
+
+        it "it sets default value to gpio in case of stop hook" do
+            @task = create_configure_and_start_task(duration: 2)
+            feedback_writer = syskit_create_writer(task.feedback_port)
+
+            expect_execution { task.stop! }
+                .join_all_waiting_work(false)
+                .to do
+                    have_one_new_sample(task.gpio_state_port)
+                        .matching { |v| v.states[0].data == 0 }
+                    not_emit task.stop_event, within: 0.5
+                end
+        
+            expect_execution
+                .poll { feedback_writer.write(off_state) }
+                .to do
+                    have_one_new_sample(task.gpio_state_port)
+                        .matching { |v| v.states[0].data == 0 }
+                    emit task.stop_event
+                end
+        end
     end
 
     describe "treating errors" do
