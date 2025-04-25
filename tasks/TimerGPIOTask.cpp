@@ -95,9 +95,15 @@ void TimerGPIOTask::stopHook()
     }
     catch(timeout_error const& e) {
         LOG_ERROR_S << e.what();
+        if (state() != EXCEPTION) {
+            exception();
+        }
     }
     catch(input_error const& e) {
         LOG_ERROR_S << e.what();
+        if (state() != EXCEPTION) {
+            exception();
+        }
     }
 }
 void TimerGPIOTask::cleanupHook()
