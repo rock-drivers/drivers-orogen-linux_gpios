@@ -2,11 +2,20 @@
 
 #include "TimerGPIOTask.hpp"
 #include "raw_io/Digital.hpp"
+#include <base-logging/Logging.hpp>
 #include <chrono>
 #include <thread>
 
 using namespace linux_gpios;
 using namespace std;
+
+struct input_error : public std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
+struct timeout_error : public std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
 
 TimerGPIOTask::TimerGPIOTask(std::string const& name)
     : TimerGPIOTaskBase(name)
@@ -75,17 +84,21 @@ void TimerGPIOTask::errorHook()
 
 void TimerGPIOTask::exceptionHook()
 {
-    try {
-        writeMessageAndCheckFeedback(m_switch_timeout, !_set_state.get());
-    }
-    catch (const std::exception& e) {
-    }
 }
 
 void TimerGPIOTask::stopHook()
 {
     TimerGPIOTaskBase::stopHook();
-    writeMessageAndCheckFeedback(m_timeout, !_set_state.get());
+
+    try {
+        writeMessageAndCheckFeedback(m_timeout, !_set_state.get());
+    }
+    catch(timeout_error const& e) {
+        LOG_ERROR_S << e.what();
+    }
+    catch(input_error const& e) {
+        LOG_ERROR_S << e.what();
+    }
 }
 void TimerGPIOTask::cleanupHook()
 {
@@ -112,7 +125,7 @@ void TimerGPIOTask::writeMessageAndCheckFeedback(base::Time timeout, bool value)
         if (_feedback.read(feedback) == RTT::NewData) {
             received = true;
             if (feedback.states.size() > 1) {
-                throw std::runtime_error("Feedback size is bigger than 1.");
+                throw input_error("Feedback size is bigger than 1.");
             }
             if (feedback.states[0].data == value) {
                 return;
@@ -122,12 +135,12 @@ void TimerGPIOTask::writeMessageAndCheckFeedback(base::Time timeout, bool value)
     }
 
     if (received) {
-        throw std::runtime_error(
+        throw timeout_error(
             "Feedback timeout: received GPIO feedback, but none with value " +
             to_string(value) + " within " + to_string(timeout.toSeconds()) + " seconds");
     }
     else {
-        throw std::runtime_error(
+        throw timeout_error(
             "Feedback timeout: did not receive any GPIO feedback within " +
             to_string(timeout.toSeconds()) + " seconds");
     }
