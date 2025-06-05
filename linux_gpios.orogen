@@ -45,6 +45,7 @@ task_context "Task" do
     output_port("r_states", "/linux_gpios/GPIOState")
         .keep_last_written_value(true)
 
+    port_driven
     periodic 0.01
 
     exception_states :IO_ERROR, :UNEXPECTED_COMMAND_SIZE
@@ -84,6 +85,7 @@ task_context "GPIOPathTask" do
     output_port("r_states", "/linux_gpios/GPIOState")
         .keep_last_written_value(true)
 
+    port_driven
     periodic 0.01
 
     exception_states :IO_ERROR, :UNEXPECTED_COMMAND_SIZE
@@ -121,5 +123,32 @@ task_context "TimerGPIOTask" do
     # Deadline to complete the command
     output_port "deadline", "base/Time"
 
-    periodic 0.1
+    port_driven
+    periodic 0.01
+end
+
+deployment "gpio_path_periodic_10ms" do
+    task("gpio_task", "linux_gpios::GPIOPathTask")
+        .periodic(0.01)
+        .realtime
+    add_default_logger.periodic(0.1)
+end
+
+deployment "gpio_path_periodic_100ms" do
+    task("task", "linux_gpios::GPIOPathTask")
+        .periodic(0.1)
+        .realtime
+    add_default_logger
+end
+
+deployment "gpio_path_periodic_1s" do
+    task("task", "linux_gpios::GPIOPathTask")
+        .periodic(1)
+    add_default_logger
+end
+
+deployment "gpio_path_port_driven" do
+    task("task", "linux_gpios::GPIOPathTask")
+        .triggered(timeout: 0.1)
+    add_default_logger
 end
