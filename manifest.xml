@@ -10,5 +10,7 @@
   <depend package="base/orogen/types" />
   <depend package="base/logging" />
   <depend package="drivers/orogen/raw_io" />
+  <depend package="drivers/linux_gpios" />
+  <depend package="drivers/orogen/comms_wetpaint" />
   <test_depend package="tools/syskit" />
 </package>

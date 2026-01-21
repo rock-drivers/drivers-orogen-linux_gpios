@@ -3,10 +3,12 @@
 name "linux_gpios"
 
 using_library "base-logging", typekit: false
+using_library "linux_gpios"
 
 import_types_from "std"
 import_types_from "raw_io"
 import_types_from "linux_gpiosTypes.hpp"
+import_types_from "comms_wetpaint"
 
 # Task that reads and/or writes GPIOs
 task_context "Task" do
@@ -122,6 +124,23 @@ task_context "TimerGPIOTask" do
 
     # Deadline to complete the command
     output_port "deadline", "base/Time"
+
+    port_driven
+    periodic 0.01
+end
+
+task_context "EStopLedGPIOTask" do
+    needs_configuration
+
+    property "transition_blink_period", "/base/Time"
+
+    property "unknown_state_blink_period", "/base/Time"
+
+    input_port "actual_status", "comms_wetpaint/SafetyStatus"
+
+    input_port "desired_status", "comms_wetpaint/SafetyStatus"
+
+    output_port "gpio_state", "/linux_gpios/GPIOState"
 
     port_driven
     periodic 0.01
