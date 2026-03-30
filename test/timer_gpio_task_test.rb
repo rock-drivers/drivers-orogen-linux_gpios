@@ -41,6 +41,25 @@ describe OroGen.linux_gpios.TimerGPIOTask do
                    "expected the true state to be sent for at least 1.5 seconds, "\
                    "but got #{toc - tic}"
         end
+
+        it "resets the GPIO to its initial value when stopped" do
+            @task = create_configure_and_start_task(
+                feedback_timeout: 2, duration: 2
+            )
+            feedback_writer = syskit_create_writer(task.feedback_port)
+
+            expect_execution { task.stop! }
+                .join_all_waiting_work(false)
+                .to do
+                    have_one_new_sample(task.gpio_state_port)
+                        .matching { |v| v.states[0].data == 0 }
+                    not_emit task.stop_event, within: 0.5
+                end
+
+            expect_execution
+                .poll { feedback_writer.write(off_state) }
+                .to_emit task.interrupt_event
+        end
     end
 
     describe "treating errors" do
@@ -102,28 +121,36 @@ describe OroGen.linux_gpios.TimerGPIOTask do
         end
     end
 
-    def create_task(duration:, switch_timeout: 2)
+    def create_task(duration:, switch_timeout: 2, feedback_timeout: 0.5)
         task = syskit_deploy(
             OroGen.linux_gpios.TimerGPIOTask
                   .deployed_as("timer_gpio_test")
         )
 
         task.properties.deadline_report = Time.at(1)
-        task.properties.feedback_timeout = Time.at(0.5)
+        task.properties.feedback_timeout = Time.at(feedback_timeout)
         task.properties.switch_timeout = Time.at(switch_timeout)
         task.properties.set_state = true
         task.properties.duration = Time.at(duration)
         task
     end
 
-    def create_configure_task(duration:, switch_timeout: 2)
-        task = create_task(duration: duration, switch_timeout: switch_timeout)
+    def create_configure_task(duration:, switch_timeout: 2, feedback_timeout: 0.5)
+        task = create_task(
+            duration: duration, switch_timeout: switch_timeout,
+            feedback_timeout: feedback_timeout
+        )
         syskit_configure(task)
         task
     end
 
-    def create_configure_and_start_task(duration:, switch_timeout: 2)
-        task = create_configure_task(duration: duration, switch_timeout: switch_timeout)
+    def create_configure_and_start_task(
+        duration:, switch_timeout: 2, feedback_timeout: 0.5
+    )
+        task = create_configure_task(
+            duration: duration, switch_timeout: switch_timeout,
+            feedback_timeout: feedback_timeout
+        )
         start_task(task)
         task
     end

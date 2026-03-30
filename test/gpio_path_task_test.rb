@@ -4,7 +4,7 @@ require "pathname"
 
 using_task_library "linux_gpios"
 
-describe OroGen.linux_gpios.Task do
+describe OroGen.linux_gpios.GPIOPathTask do
     run_live
 
     describe "general functionality" do
@@ -14,10 +14,9 @@ describe OroGen.linux_gpios.Task do
             @gpio_root = Pathname(Dir.mktmpdir)
 
             @task = syskit_deploy(
-                OroGen.linux_gpios.Task
+                OroGen.linux_gpios.GPIOPathTask
                     .deployed_as("task_under_test")
             )
-            @task.properties.sysfs_gpio_path = @gpio_root.to_s
         end
 
         after do
@@ -25,15 +24,15 @@ describe OroGen.linux_gpios.Task do
         end
 
         it "fails to configure if a GPIO does not exist" do
-            task.properties.r_configuration = { ids: [124] }
+            task.properties.r_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
             assert_raises(Roby::EmissionFailed) do
                 syskit_configure(task)
             end
         end
 
         it "outputs the initial state of the GPIO on start" do
-            make_fake_gpio(124, false)
-            task.properties.r_configuration = { ids: [124] }
+            make_fake_gpio("gpio_test_name", false)
+            task.properties.r_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
             syskit_configure(task)
 
             sample = expect_execution { task.start! }.to do
@@ -44,9 +43,9 @@ describe OroGen.linux_gpios.Task do
         end
 
         it "writes a new state and reads it back" do
-            make_fake_gpio(124, false)
-            task.properties.w_configuration = { ids: [124] }
-            task.properties.r_configuration = { ids: [124] }
+            make_fake_gpio("gpio_test_name", false)
+            task.properties.w_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
+            task.properties.r_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
             syskit_configure_and_start(task)
 
             command = { states: [{ data: 1 }] }
@@ -55,12 +54,12 @@ describe OroGen.linux_gpios.Task do
                     .matching { |s| s.states[0].data != 0 }
             end
 
-            assert read_fake_gpio(124)
+            assert read_fake_gpio("gpio_test_name")
         end
 
         it "outputs the current state periodically by default" do
-            make_fake_gpio(124, false)
-            task.properties.r_configuration = { ids: [124] }
+            make_fake_gpio("gpio_test_name", false)
+            task.properties.r_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
             syskit_configure_and_start(task)
 
             expect_execution.to { have_new_samples(task.r_states_port, 10) }
@@ -68,9 +67,9 @@ describe OroGen.linux_gpios.Task do
 
         it "does not write if there are no state changes when " \
            "edge_triggered_output is set" do
-            make_fake_gpio(124, false)
+            make_fake_gpio("gpio_test_name", false)
             task.properties.edge_triggered_output = true
-            task.properties.r_configuration = { ids: [124] }
+            task.properties.r_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
             syskit_configure_and_start(task)
 
             expect_execution.to do
@@ -79,8 +78,8 @@ describe OroGen.linux_gpios.Task do
         end
 
         it "rejects a command input whose size is lower than the expected" do
-            make_fake_gpio(124, false)
-            task.properties.w_configuration = { ids: [124] }
+            make_fake_gpio("gpio_test_name", false)
+            task.properties.w_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
             syskit_configure_and_start(task)
 
             command = { states: [] }
@@ -90,8 +89,8 @@ describe OroGen.linux_gpios.Task do
         end
 
         it "rejects a command input whose size is greater than the expected" do
-            make_fake_gpio(124, false)
-            task.properties.w_configuration = { ids: [124] }
+            make_fake_gpio("gpio_test_name", false)
+            task.properties.w_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
             syskit_configure_and_start(task)
 
             command = { states: [{ data: 1 }, { data: 1 }] }
@@ -102,9 +101,9 @@ describe OroGen.linux_gpios.Task do
 
         it "with edge_triggered_output set, writes the current value when it " \
            "receives a command, regardless of whether the value changed" do
-            make_fake_gpio(124, false)
-            task.properties.w_configuration = { ids: [124] }
-            task.properties.r_configuration = { ids: [124] }
+            make_fake_gpio("gpio_test_name", false)
+            task.properties.w_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
+            task.properties.r_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
             task.properties.edge_triggered_output = true
             syskit_configure_and_start(task)
 
@@ -121,11 +120,11 @@ describe OroGen.linux_gpios.Task do
 
         it "with edge_triggered_output set, writes the default value on start and " \
            "reports the initial value if it changed" do
-            make_fake_gpio(124, false)
+            make_fake_gpio("gpio_test_name", false)
             task.properties.w_configuration = {
-                ids: [124], defaults: [1], timeout: Time.at(20)
+                gpio_paths: [gpio_path("gpio_test_name")], defaults: [1], timeout: Time.at(20)
             }
-            task.properties.r_configuration = { ids: [124] }
+            task.properties.r_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
             task.properties.edge_triggered_output = true
             syskit_configure(task)
 
@@ -133,15 +132,15 @@ describe OroGen.linux_gpios.Task do
                 have_new_samples(task.r_states_port, 2)
             end
 
-            assert read_fake_gpio(124)
+            assert read_fake_gpio("gpio_test_name")
             assert_equal 0, samples[0].states[0].data
             assert_equal 1, samples[1].states[0].data
         end
 
         it "writes the default value if the port is disconnected" do
-            make_fake_gpio(124, false)
+            make_fake_gpio("gpio_test_name", false)
             task.properties.w_configuration = {
-                ids: [124], defaults: [0], timeout: Time.at(600)
+                gpio_paths: [gpio_path("gpio_test_name")], defaults: [0], timeout: Time.at(600)
             }
             syskit_configure_and_start(task)
 
@@ -149,20 +148,20 @@ describe OroGen.linux_gpios.Task do
 
             command = { states: [{ data: 1 }] }
             expect_execution { syskit_write(w, command) }.to do
-                achieve { read_fake_gpio(124) }
+                achieve { read_fake_gpio("gpio_test_name") }
             end
             w.disconnect
 
             expect_execution.to do
-                achieve { !read_fake_gpio(124) }
+                achieve { !read_fake_gpio("gpio_test_name") }
             end
         end
 
         it "writes the default value if no new samples "\
            "are received within the configured timeout" do
-            make_fake_gpio(124, false)
+            make_fake_gpio("gpio_test_name", false)
             task.properties.w_configuration = {
-                ids: [124], defaults: [0], timeout: Time.at(0.5)
+                gpio_paths: [gpio_path("gpio_test_name")], defaults: [0], timeout: Time.at(0.5)
             }
             syskit_configure_and_start(task)
 
@@ -170,11 +169,11 @@ describe OroGen.linux_gpios.Task do
 
             command = { states: [{ data: 1 }] }
             expect_execution { syskit_write(w, command) }.to do
-                achieve { read_fake_gpio(124) }
+                achieve { read_fake_gpio("gpio_test_name") }
             end
 
             sleep(0.8)
-            refute read_fake_gpio(124)
+            refute read_fake_gpio("gpio_test_name")
         end
     end
 
@@ -183,14 +182,13 @@ describe OroGen.linux_gpios.Task do
 
         before do
             @gpio_root = Pathname(Dir.mktmpdir)
-            make_fake_gpio(42, true)
+            make_fake_gpio("gpio_test_name", true)
 
             @task = syskit_deploy(
-                OroGen.linux_gpios.Task
+                OroGen.linux_gpios.GPIOPathTask
                     .deployed_as("task_under_test")
                     .with_arguments(name: "task")
             )
-            @task.properties.sysfs_gpio_path = @gpio_root.to_s
             @task.properties.edge_triggered_output = true
         end
 
@@ -209,7 +207,7 @@ describe OroGen.linux_gpios.Task do
             end.to do # rubocop:disable Style/MultilineBlockChain
                 have_one_new_sample(data_reader)
             end
-            refute read_fake_gpio(42)
+            refute read_fake_gpio("gpio_test_name")
 
             expect_execution do
                 data_reader.disconnect
@@ -235,7 +233,7 @@ describe OroGen.linux_gpios.Task do
             data_reader.disconnect
             data_reader = syskit_create_reader task.r_states_port, init: true
             expect_execution.to { have_one_new_sample(data_reader) }
-            refute read_fake_gpio(42)
+            refute read_fake_gpio("gpio_test_name")
         end
 
         it "keeps the last value even after multiple disconnections and reconnections" do
@@ -255,26 +253,30 @@ describe OroGen.linux_gpios.Task do
                 data_reader = syskit_create_reader task.r_states_port, init: true
             end
             expect_execution.to { have_one_new_sample(data_reader) }
-            refute read_fake_gpio(42)
+            refute read_fake_gpio("gpio_test_name")
         end
 
         def configure_and_start_task
-            task.properties.w_configuration = { ids: [42] }
-            task.properties.r_configuration = { ids: [42] }
+            task.properties.w_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
+            task.properties.r_configuration = { gpio_paths: [gpio_path("gpio_test_name")] }
             syskit_configure_and_start(task)
         end
     end
 
-    def make_fake_gpio(id, value)
-        (@gpio_root / "gpio#{id}").mkpath
-        write_fake_gpio(id, value)
+    def make_fake_gpio(gpio_name, value)
+        (@gpio_root / gpio_name).mkpath
+        write_fake_gpio(gpio_name, value)
     end
 
-    def write_fake_gpio(id, value)
-        (@gpio_root / "gpio#{id}" / "value").write(value ? "1" : "0")
+    def write_fake_gpio(gpio_name, value)
+        (@gpio_root / gpio_name / "value").write(value ? "1" : "0")
     end
 
-    def read_fake_gpio(id)
-        (@gpio_root / "gpio#{id}" / "value").read == "1"
+    def read_fake_gpio(gpio_name)
+        (@gpio_root / gpio_name / "value").read == "1"
+    end
+
+    def gpio_path(gpio_name)
+        (@gpio_root / gpio_name).to_s
     end
 end

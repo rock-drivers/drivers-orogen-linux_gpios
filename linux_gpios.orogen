@@ -42,8 +42,50 @@ task_context "Task" do
     #
     # - create reader and writer
     # - write state until it is reported as being the expected new state
-    output_port "r_states", "/linux_gpios/GPIOState"
+    output_port("r_states", "/linux_gpios/GPIOState")
+        .keep_last_written_value(true)
 
+    port_driven
+    periodic 0.01
+
+    exception_states :IO_ERROR, :UNEXPECTED_COMMAND_SIZE
+end
+
+# Task that reads and/or writes GPIOs based on its path in the system and not its ids
+task_context "GPIOPathTask" do
+    # This is the default from now on, and should not be removed. Rock will
+    # transition to a setup where all components use a configuration step.
+    needs_configuration
+
+    # Whether the output should be written only when change
+    #
+    # It is false to keep backward compatibility. We recommend setting to true
+    property "edge_triggered_output", "/bool", false
+
+    # The set of GPIOs that should be written, as a list of GPIO names
+    property "w_configuration", "/linux_gpios/WritePathConfiguration"
+
+    # The port on which the 'output' GPIOs can be commanded, in the same order
+    # than the 'inputs' property
+    input_port "w_commands", "/linux_gpios/GPIOState"
+
+    # The set of GPIOs that should be read, as a list of GPIO names
+    property "r_configuration", "/linux_gpios/ReadPathConfiguration"
+
+    # The port on which the state of the GPIOs that are read is exported
+    #
+    # If edge_triggered_output is set to false, this port will periodically
+    # publish the GPIO state. If edge_triggered_output is set, the component
+    # will publish the state when it changes and when the w_states port is
+    # written. This latter condition allows to wait for a GPIO state to change,
+    # regardless of the curent state of the GPIO
+    #
+    # - create reader and writer
+    # - write state until it is reported as being the expected new state
+    output_port("r_states", "/linux_gpios/GPIOState")
+        .keep_last_written_value(true)
+
+    port_driven
     periodic 0.01
 
     exception_states :IO_ERROR, :UNEXPECTED_COMMAND_SIZE
@@ -81,5 +123,32 @@ task_context "TimerGPIOTask" do
     # Deadline to complete the command
     output_port "deadline", "base/Time"
 
+    port_driven
     periodic 0.01
+end
+
+deployment "gpio_path_periodic_10ms" do
+    task("gpio_task", "linux_gpios::GPIOPathTask")
+        .periodic(0.01)
+        .realtime
+    add_default_logger.periodic(0.1)
+end
+
+deployment "gpio_path_periodic_100ms" do
+    task("task", "linux_gpios::GPIOPathTask")
+        .periodic(0.1)
+        .realtime
+    add_default_logger
+end
+
+deployment "gpio_path_periodic_1s" do
+    task("task", "linux_gpios::GPIOPathTask")
+        .periodic(1)
+    add_default_logger
+end
+
+deployment "gpio_path_port_driven" do
+    task("task", "linux_gpios::GPIOPathTask")
+        .triggered(timeout: 0.1)
+    add_default_logger
 end
